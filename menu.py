@@ -4,6 +4,7 @@ import json
 import os
 import random
 import time
+from colloquium_bank import colloquium_bank
 
 SETTINGS_FILE = "settings.json"
 fullscreen_checked = False
@@ -20,7 +21,18 @@ day_start_time = None
 previous_screen = None
 settings_open = False
 game_paused = False
+grades_data = []
+colloquium_data = []
+selected_lines = []
+colloquium_checked_lines = []
+colloquium_errors = []
 
+
+# 5c26ce - fioletowy
+
+blue = (20, 33, 61)
+zolty = (252, 163, 17)
+szary = (229, 229, 229)
 
 def save_settings():
     settings = {
@@ -269,9 +281,9 @@ def draw_character_select():
         draw_text_top_left_from_center("Informatyk", title_font, 'black', screen, -280, -32)
         draw_text_top_left_from_center("Matematyk", title_font, 'black', screen, 520, -32)
     else:
-        pygame.draw.rect(screen, (200, 200, 200),
+        pygame.draw.rect(screen, szary,
                          pygame.Rect(SCREEN_WIDTH // 2 - 200, SCREEN_HEIGHT // 2 - 120, 200, 250))
-        pygame.draw.rect(screen, (200, 200, 200), pygame.Rect(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2 - 120, 200, 250))
+        pygame.draw.rect(screen, szary, pygame.Rect(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2 - 120, 200, 250))
     return char1_rect, char2_rect
 
 
@@ -323,7 +335,7 @@ def draw_timer():
 
 
 def draw_task_screen():
-    screen.fill((200, 200, 200))
+    screen.fill(szary)
     draw_top_bar()
     draw_timer()
     draw_multiple_task_boxes(screen, tasks, 50, 180)
@@ -393,6 +405,7 @@ def draw_login_form():
     password_text_rect.topleft = (
         password_rect.x + 5, password_rect.y + (password_rect.height - password_text_rect.height) // 2 - 1)
     screen.blit(password_surface, password_text_rect)
+    draw_rounded_rect_from_center_offset(screen, -75, 75, 150, 50, zolty, 10)
     login_button_rect = draw_text("Zaloguj", text_font, 'black', screen, 0, 100)
     question_rect = draw_image_top_left_from_center(question_mark_icon, screen, 210, 160)
     if question_rect.collidepoint(mouse_pos):
@@ -424,22 +437,19 @@ def calculate_final_grade(average):
 
 def adjust_final_grade(final_grade, easy_mode_checked):
     possible_grades = [2, 3, 3.5, 4, 4.5, 5]
-    if easy_mode_checked:
-        if random.random() < 0.33:
-            wrong_choices = [grade for grade in possible_grades if grade != final_grade]
-            return random.choice(wrong_choices)
-        else:
-            return final_grade
-    else:
-        if random.random() < 0.33:
-            adjustment = random.choice([0.5, -0.5])
-            new_grade = final_grade + adjustment
-            if new_grade in possible_grades:
-                return new_grade
+
+    if random.random() < 0.5:
+        if easy_mode_checked:
+            candidates = [g for g in possible_grades if abs(g - final_grade) == 0.5]
+            if candidates:
+                return random.choice(candidates)
             else:
                 return final_grade
         else:
-            return final_grade
+            wrong_choices = [g for g in possible_grades if g != final_grade]
+            return random.choice(wrong_choices)
+    else:
+        return final_grade
 
 
 switch_buttons = []
@@ -496,7 +506,8 @@ def draw_grades_window(grades_data):
         draw_text_top_left_from_center(f"Średnia: {avg}", font, (0, 0, 0), screen, x - xx, base_y + 60 - yy)
         draw_text_top_left_from_center(f"Ocena końcowa: {final_grade_adjusted}", font, (0, 0, 0), screen, x - xx,
                                        base_y + 90 - yy)
-    accept_button_rect = draw_text("Akceptuj", text_font, (0, 0, 0), screen, 0, 400)
+    draw_rounded_rect_from_center_offset(screen, -75, 375, 150, 50, zolty, 10)
+    accept_button_rect = draw_text("Akceptuj", text_font, blue, screen, 0, 400)
     return accept_button_rect
 
 
@@ -531,6 +542,53 @@ def draw_day_end_window(day_counter):
     draw_text(f"Ilość zrobionych zadań: {completed_tasks}", text_font, 'black', screen, 0, 50)
     continue_rect = draw_text("Kontynuuj", text_font, 'black', screen, 0, 150)
     return continue_rect
+
+def generate_colloquium():
+    global colloquium_data, colloquium_errors, selected_lines
+    student_names = [
+        'Anna Dąbrowska', 'Bartek Sitek', 'Celina Fikus', 'Daniel Obajtek',
+        'Ela Jabłońska', 'Filip Chajzer', 'Gosia Androsiewicz', 'Hubert Urbański'
+    ]
+    name = random.choice(student_names)
+    entry = random.choice(colloquium_bank)
+    variant = random.choice(entry["variants"])
+    task = entry["task"]
+    code = variant["code"]
+    errors = variant["errors"]
+
+    selected_lines = [False] * len(code)
+    colloquium_data = (name, task, code)
+    colloquium_errors = errors
+
+def draw_colloquium_window():
+    draw_task_screen()
+
+    rect = draw_rounded_rect_from_center_offset(screen, -250, -400, 800, 850, (255, 255, 255), 10)
+    font = other_font
+    xx, yy = 950, 530
+    x, y = rect.left + 20, rect.top + 20
+
+    name, task, code_lines = colloquium_data
+    draw_text_top_left_from_center("Kolokwium studenta:", font, (0, 0, 0), screen, x - xx, y - yy)
+    y += 40
+    draw_text_top_left_from_center(f"Imię i nazwisko: {name}", font, (0, 0, 0), screen, x - xx, y - yy)
+    y += 40
+    draw_text_top_left_from_center(f"Polecenie: {task}", font, (0, 0, 0), screen, x - xx, y - yy)
+    y += 60
+
+    line_rects = []
+    for i, line in enumerate(code_lines):
+        color = (255, 0, 0) if selected_lines[i] else (0, 0, 0)
+        line_number = f"{i + 1}".rjust(2)
+        line_text = f"{line_number}: {line}"
+        text_rect = draw_text_top_left_from_center(line_text, font, color, screen, x - xx, y - yy)
+        y += 40
+        line_rects.append(text_rect)
+
+    draw_rounded_rect_from_center_offset(screen, -150, 375, 300, 50, zolty, 10)
+    accept_button_rect = draw_text("Zatwierdź sprawdzanie", text_font, blue, screen, 0, 400)
+
+    return line_rects, accept_button_rect
 
 
 tasks = [{"text": "Wybierz swój zawód", "checked": False}]
@@ -614,6 +672,10 @@ while run:
             elif exit_rect.collidepoint(mouse_pos):
                 save_settings()
                 run = False
+            elif tab_name == "Kolokwia":
+                complete_task(2)
+                generate_colloquium()
+                current_screen = "colloquium_screen"
 
     elif current_screen == "settings":
         (back_rect, full_icon_rect, easy_icon_rect, minus_rect, plus_rect,
@@ -648,8 +710,8 @@ while run:
             handle_character_selection(mouse_pos, mouse_clicked, char1_rect, char2_rect)
 
     elif current_screen == "task_screen":
+        draw_task_screen()
         tab_rects = draw_top_bar()
-        draw_multiple_task_boxes(screen, tasks, 50, 180)
         if mouse_clicked:
             for tab_name, tab_rect in tab_rects:
                 if tab_rect.collidepoint(mouse_pos) and tab_name == "Zaloguj":
@@ -661,6 +723,10 @@ while run:
                         "checked": False
                     })
                     current_screen = "webdziekanat_screen"
+                elif tab_rect.collidepoint(mouse_pos) and tab_name == "Kolokwia":
+                    complete_task(2)
+                    generate_colloquium()
+                    current_screen = "colloquium_screen"
 
     elif current_screen == "login_form":
         draw_login_form()
@@ -687,13 +753,13 @@ while run:
     elif current_screen == "webdziekanat_screen":
         if not switches_initialized:
             grades_data = get_grades_data(easy_mode_checked)
-            accept_button_rect = draw_grades_window(grades_data)
             persons = [gd[0] for gd in grades_data]
             correct_states = [
                 calculate_final_grade(avg) == final
                 for (_, _, avg, final) in grades_data
             ]
             init_switches(persons, easy_mode_checked)
+        accept_button_rect = draw_grades_window(grades_data)
         draw_switches()
 
         if mouse_clicked:
@@ -713,14 +779,32 @@ while run:
             day_start_time = time.time()
             current_hour = 8
             current_minute = 0
-            tasks.append({"text": f"Zadanie na dzień {day_counter + 1}", "checked": False})
-            tasks.append({"text": f"Zadanie na dzień {day_counter + 1}", "checked": False})
-            tasks.append({"text": f"Zadanie na dzień {day_counter + 1}", "checked": False})
-            tabs = []
+            tasks.clear()
+            tabs.clear()
+            if day_counter == 1:
+                tasks.append({"text": "Sprawdź kolokwium studenta w zakładce 'Kolokwia'", "checked": False})
+                tabs.append("Kolokwia")
+            else:
+                tasks.append({"text": f"Zadanie na dzień {day_counter + 1}", "checked": False})
+                tasks.append({"text": f"Zadanie na dzień {day_counter + 1}", "checked": False})
+                tasks.append({"text": f"Zadanie na dzień {day_counter + 1}", "checked": False})
             current_screen = "task_screen"
             status_achieved_time = pygame.time.get_ticks()
             draw_task_screen()
             save_settings()
+
+    elif current_screen == "colloquium_screen":
+        line_rects, accept_button_rect = draw_colloquium_window()
+        if mouse_clicked:
+            for i, rect in enumerate(line_rects):
+                if rect.collidepoint(mouse_pos):
+                    selected_lines[i] = not selected_lines[i]
+            if accept_button_rect.collidepoint(mouse_pos):
+                current_error_count = 0
+                for i in range(len(selected_lines)):
+                    if selected_lines[i] != (i in colloquium_errors):
+                        current_error_count += 1
+                current_screen = "day_end_screen"
 
     else:
         switches_initialized = False
