@@ -25,13 +25,14 @@ colloquium_data = []
 selected_lines = []
 colloquium_checked_lines = []
 colloquium_errors = []
-
+timer_flag = True
 
 # 5c26ce - fioletowy
 
 blue = (20, 33, 61)
 zolty = (252, 163, 17)
 szary = (229, 229, 229)
+
 
 def save_settings():
     settings = {
@@ -86,6 +87,7 @@ volume_bar_border_icon = pygame.image.load('images/volume_border.png')
 question_mark_icon = pygame.image.load('images/question_mark.png')
 switch_ok_icon = pygame.image.load('images/switch_ok.png')
 switch_no_icon = pygame.image.load('images/switch_no.png')
+red_frame = pygame.image.load('images/red_frame.png')
 
 
 def scale_image(image, scale_factor):
@@ -363,7 +365,6 @@ def complete_task(index):
         save_settings()
 
 
-
 def draw_timer():
     text = f"Dzień {day_counter + 1} Godzina: {current_hour:02}:{current_minute:02}"
     text_surface = text_font.render(text, True, "black")
@@ -374,7 +375,8 @@ def draw_timer():
 def draw_task_screen():
     screen.fill(szary)
     draw_top_bar()
-    draw_timer()
+    if timer_flag:
+        draw_timer()
     draw_multiple_task_boxes(screen, tasks, 50, 180)
 
 
@@ -442,7 +444,6 @@ def draw_login_form():
     password_text_rect.topleft = (
         password_rect.x + 5, password_rect.y + (password_rect.height - password_text_rect.height) // 2 - 1)
     screen.blit(password_surface, password_text_rect)
-    draw_rounded_rect_from_center_offset(screen, -75, 75, 150, 50, zolty, 10)
     login_button_rect = draw_button("Akceptuj", 150, 50, SCREEN_WIDTH // 2 + 0, SCREEN_HEIGHT // 2 + 100)
     question_rect = draw_image_top_left_from_center(question_mark_icon, screen, 210, 160)
     if question_rect.collidepoint(mouse_pos):
@@ -565,19 +566,56 @@ def draw_switches():
         switch.draw(screen)
 
 
+money_per_task = 15
+rent_price = 25
+food_price = 15
+penalty_for_error = 5
+easy_mode_grant = 15
+
+
 def draw_day_end_window(day_counter):
-    complete_task(3)
     tabs.clear()
     tasks.clear()
+    global timer_flag, idx
+    timer_flag = False
     draw_task_screen()
+    timer_flag = True
     day_counter = day_counter + 1
     draw_rounded_rect_from_center_offset(screen, -275, -225, 550, 450, (255, 255, 255), 10)
-    draw_text(f"Dzień {day_counter} zakończony!", title_font, 'black', screen, 0, -150)
-    draw_text("Gratulacje!", text_font, 'black', screen, 0, -50)
-    draw_text(f"Ilość błędów: {current_error_count}", text_font, 'black', screen, 0, 0)
-    draw_text(f"Ilość zrobionych zadań: {completed_tasks}", text_font, 'black', screen, 0, 50)
+
+    # status = 0 - zwykly text
+    # status = 1 - wymaga zaznaczenia
+
+    # color = 0 - czarny 'black'
+    # color = 1 - czerwony 'red'
+    # color = 2 - ciemno zielony (255, 87, 51)
+
+    day_end_data = [
+        {"text": "Oszczędności", "status": 0, "color": "black", "value": coins},
+        {"text": f"Wynagrodzenie ({completed_tasks})", "status": 0, "color": "black",
+         "value": completed_tasks * money_per_task},
+        {"text": "Wynajem", "status": 0, "color": "red", "value": rent_price},
+        {"text": "Jedzenie", "status": 1, "color": "red", "value": food_price},
+    ]
+
+    for idx, entry in enumerate(day_end_data):
+        draw_text_top_left_from_center(entry["text"], text_font, entry["color"], screen, -200, idx * 40 - 200)
+        draw_text_top_right_from_center(entry["value"], text_font, entry["color"], screen, 200, idx * 40 - 200)
+        if entry["status"] == 1:
+            fullscreen_icon_rect = draw_image_top_left_from_center(red_frame, screen, 220, idx * 40 - 198)
+
+    if easy_mode_checked:
+        idx += 1
+        draw_text_top_left_from_center("Zapomoga (tryb łatwy)", text_font, "black", screen, -200, idx * 40 - 200)
+        draw_text_top_right_from_center(easy_mode_grant, text_font, "black", screen, 200, idx * 40 - 200)
+
+    # draw_text(f"Dzień {day_counter} zakończony!", title_font, 'black', screen, 0, -150)
+    # draw_text("Gratulacje!", text_font, 'black', screen, 0, -50)
+    # draw_text(f"Ilość błędów: {current_error_count}", text_font, 'black', screen, 0, 0)
+    # draw_text(f"Ilość zrobionych zadań: {completed_tasks}", text_font, 'black', screen, 0, 50)
     continue_rect = draw_button("Kontynuuj", 150, 50, SCREEN_WIDTH // 2 + 0, SCREEN_HEIGHT // 2 + 150)
     return continue_rect
+
 
 def generate_colloquium():
     global colloquium_data, colloquium_errors, selected_lines
@@ -595,6 +633,7 @@ def generate_colloquium():
     selected_lines = [False] * len(code)
     colloquium_data = (name, task, code)
     colloquium_errors = errors
+
 
 def draw_colloquium_window():
     draw_task_screen()
@@ -624,6 +663,7 @@ def draw_colloquium_window():
     accept_button_rect = draw_button("Zatwierdź sprawdzanie", 300, 50, SCREEN_WIDTH // 2 + 0, SCREEN_HEIGHT // 2 + 400)
 
     return line_rects, accept_button_rect
+
 
 def draw_button(text, width, height, center_x, center_y):
     shadow_offset = 2
