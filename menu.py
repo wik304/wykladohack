@@ -13,7 +13,6 @@ music_volume = 100
 sound_volume = 100
 day_counter = 0
 completed_tasks = 0
-player_status = "Inżynier"
 status_achieved_time = None
 current_hour = 8
 current_minute = 0
@@ -94,8 +93,12 @@ def scale_image(image, scale_factor):
     return pygame.transform.scale(image, (int(width * scale_factor), int(height * scale_factor)))
 
 
-switch_ok_icon = scale_image(switch_ok_icon, 2)
+switch_ok_icon = scale_image(switch_ok_icon, 1)
 switch_no_icon = scale_image(switch_no_icon, 2)
+
+coin_icon = pygame.image.load('images/coin_icon.png')
+coin_icon = scale_image(coin_icon, 2)
+coins = 0
 
 title_font = pygame.font.Font('font/VT323-Regular.ttf', 64)
 text_font = pygame.font.Font('font/VT323-Regular.ttf', 32)
@@ -116,6 +119,23 @@ show_info = False
 global switch_buttons
 correct_states = []
 current_error_count = 0
+
+statusy = [
+    "Student I stopnia",
+    "Student II stopnia",
+    "Licencjat",
+    "Magister",
+    "Doktorant",
+    "Doktor",
+    "Dr habilitowany",
+    "Profesor nadzwyczajny",
+    "Profesor uczelni",
+    "Profesor zwyczajny"
+]
+progi = [4, 7, 10, 15, 20, 30, 42, 57, 75, 95]
+current_status_idx = 0
+total_completed_tasks = 0
+show_status_notification = False
 
 
 def draw_image_top_left_from_center(image, surface, offset_x=0, offset_y=0):
@@ -233,6 +253,7 @@ def draw_multiple_task_boxes(screen, tasks, start_x, start_y, vertical_spacing=1
 
 
 def draw_top_bar():
+    global show_status_notification
     bar_height = 60
     pygame.draw.rect(screen, (255, 255, 255), (0, 0, SCREEN_WIDTH, bar_height))
     pygame.draw.rect(screen, (0, 0, 0), (0, bar_height, SCREEN_WIDTH, 1))
@@ -247,16 +268,23 @@ def draw_top_bar():
         tab_rects.append((tabs[i], rect))
         x += surf.get_width() + spacing
     if day_counter > 0:
-        base_text = f"Status: {player_status} "
-        base_surface = text_font.render(base_text, True, (0, 0, 0))
-        screen.blit(base_surface, (15, 15))
+        icon_y = 15
+        screen.blit(coin_icon, (15, icon_y))
+        coin_surf = text_font.render(f"x{coins}", True, (0, 0, 0))
+        screen.blit(coin_surf, (15 + coin_icon.get_width() + 8,
+                                icon_y + (coin_icon.get_height() - coin_surf.get_height()) // 2))
+        status_x = 15 + coin_icon.get_width() + 8 + coin_surf.get_width() + 20
+        status_text = f"Status: {statusy[current_status_idx]}"
+        status_surf = text_font.render(status_text, True, (0, 0, 0))
+        screen.blit(status_surf, (status_x, 15))
 
-        if status_achieved_time is not None:
+        if show_status_notification:
             elapsed = (pygame.time.get_ticks() - status_achieved_time) / 1000
-            if elapsed < 5:
-                highlight_text = "- osiągnięto nowy status"
-                highlight_surface = text_font.render(highlight_text, True, (255, 0, 0))
-                screen.blit(highlight_surface, (15 + base_surface.get_width(), 15))
+            if elapsed < 3:
+                notif_surf = text_font.render("- osiągnięto nowy status", True, (255, 0, 0))
+                screen.blit(notif_surf, (status_x + status_surf.get_width() + 10, 15))
+            else:
+                show_status_notification = False
     return tab_rects
 
 
@@ -320,11 +348,20 @@ def handle_character_selection(mouse_pos, mouse_clicked, char1_rect, char2_rect)
 
 
 def complete_task(index):
-    global completed_tasks
+    global completed_tasks, total_completed_tasks, current_status_idx, status_achieved_time, show_status_notification
     if 0 <= index < len(tasks) and not tasks[index]["checked"]:
         tasks[index]["checked"] = True
         completed_tasks += 1
+        total_completed_tasks += 1
+
+        next_idx = current_status_idx + 1
+        if next_idx < len(statusy) and total_completed_tasks >= progi[next_idx]:
+            current_status_idx = next_idx
+            status_achieved_time = pygame.time.get_ticks()
+            show_status_notification = True
+
         save_settings()
+
 
 
 def draw_timer():
@@ -406,7 +443,7 @@ def draw_login_form():
         password_rect.x + 5, password_rect.y + (password_rect.height - password_text_rect.height) // 2 - 1)
     screen.blit(password_surface, password_text_rect)
     draw_rounded_rect_from_center_offset(screen, -75, 75, 150, 50, zolty, 10)
-    login_button_rect = draw_text("Zaloguj", text_font, 'black', screen, 0, 100)
+    login_button_rect = draw_button("Akceptuj", 150, 50, SCREEN_WIDTH // 2 + 0, SCREEN_HEIGHT // 2 + 100)
     question_rect = draw_image_top_left_from_center(question_mark_icon, screen, 210, 160)
     if question_rect.collidepoint(mouse_pos):
         show_info = True
@@ -506,8 +543,7 @@ def draw_grades_window(grades_data):
         draw_text_top_left_from_center(f"Średnia: {avg}", font, (0, 0, 0), screen, x - xx, base_y + 60 - yy)
         draw_text_top_left_from_center(f"Ocena końcowa: {final_grade_adjusted}", font, (0, 0, 0), screen, x - xx,
                                        base_y + 90 - yy)
-    draw_rounded_rect_from_center_offset(screen, -75, 375, 150, 50, zolty, 10)
-    accept_button_rect = draw_text("Akceptuj", text_font, blue, screen, 0, 400)
+    accept_button_rect = draw_button("Akceptuj", 150, 50, SCREEN_WIDTH // 2 + 0, SCREEN_HEIGHT // 2 + 400)
     return accept_button_rect
 
 
@@ -540,7 +576,7 @@ def draw_day_end_window(day_counter):
     draw_text("Gratulacje!", text_font, 'black', screen, 0, -50)
     draw_text(f"Ilość błędów: {current_error_count}", text_font, 'black', screen, 0, 0)
     draw_text(f"Ilość zrobionych zadań: {completed_tasks}", text_font, 'black', screen, 0, 50)
-    continue_rect = draw_text("Kontynuuj", text_font, 'black', screen, 0, 150)
+    continue_rect = draw_button("Kontynuuj", 150, 50, SCREEN_WIDTH // 2 + 0, SCREEN_HEIGHT // 2 + 150)
     return continue_rect
 
 def generate_colloquium():
@@ -585,10 +621,26 @@ def draw_colloquium_window():
         y += 40
         line_rects.append(text_rect)
 
-    draw_rounded_rect_from_center_offset(screen, -150, 375, 300, 50, zolty, 10)
-    accept_button_rect = draw_text("Zatwierdź sprawdzanie", text_font, blue, screen, 0, 400)
+    accept_button_rect = draw_button("Zatwierdź sprawdzanie", 300, 50, SCREEN_WIDTH // 2 + 0, SCREEN_HEIGHT // 2 + 400)
 
     return line_rects, accept_button_rect
+
+def draw_button(text, width, height, center_x, center_y):
+    shadow_offset = 2
+
+    rect_shadow = pygame.Rect(0, 0, width, height)
+    rect_shadow.center = (center_x + shadow_offset, center_y + shadow_offset)
+    pygame.draw.rect(screen, (0, 0, 0), rect_shadow, border_radius=10)
+
+    rect = pygame.Rect(0, 0, width, height)
+    rect.center = (center_x, center_y)
+    pygame.draw.rect(screen, zolty, rect, border_radius=10)
+
+    text_surf = text_font.render(text, True, blue)
+    text_rect = text_surf.get_rect(center=rect.center)
+    screen.blit(text_surf, text_rect)
+
+    return rect
 
 
 tasks = [{"text": "Wybierz swój zawód", "checked": False}]
@@ -609,6 +661,11 @@ while run:
             if current_hour >= 16:
                 current_hour = 16
                 current_minute = 0
+                if current_screen == "task_screen":
+                    current_screen = "day_end_screen"
+
+    if current_screen == "task_screen" and completed_tasks >= len(tasks):
+        current_screen = "day_end_screen"
 
     draw_timer()
 
@@ -672,10 +729,6 @@ while run:
             elif exit_rect.collidepoint(mouse_pos):
                 save_settings()
                 run = False
-            elif tab_name == "Kolokwia":
-                complete_task(2)
-                generate_colloquium()
-                current_screen = "colloquium_screen"
 
     elif current_screen == "settings":
         (back_rect, full_icon_rect, easy_icon_rect, minus_rect, plus_rect,
@@ -717,11 +770,6 @@ while run:
                 if tab_rect.collidepoint(mouse_pos) and tab_name == "Zaloguj":
                     current_screen = "login_form"
                 elif tab_rect.collidepoint(mouse_pos) and tab_name == "Webdziekanat":
-                    complete_task(2)
-                    tasks.append({
-                        "text": "Sprawdź czy oceny końcowe studentów zgadzają się z oceną wypadającą ze średniej, jeśli nie popraw je",
-                        "checked": False
-                    })
                     current_screen = "webdziekanat_screen"
                 elif tab_rect.collidepoint(mouse_pos) and tab_name == "Kolokwia":
                     complete_task(2)
@@ -768,7 +816,14 @@ while run:
                     1 for i, sw in enumerate(switch_buttons)
                     if sw.state != correct_states[i]
                 )
-                current_screen = "day_end_screen"
+                for idx, task in enumerate(tasks):
+                    if "Webdziekanat" in task["text"]:
+                        complete_task(idx)
+                        break
+                if day_counter == 0 or completed_tasks >= len(tasks):
+                    current_screen = "day_end_screen"
+                else:
+                    current_screen = "task_screen"
 
     elif current_screen == "day_end_screen":
         continue_rect = draw_day_end_window(day_counter)
@@ -785,9 +840,12 @@ while run:
                 tasks.append({"text": "Sprawdź kolokwium studenta w zakładce 'Kolokwia'", "checked": False})
                 tabs.append("Kolokwia")
             else:
-                tasks.append({"text": f"Zadanie na dzień {day_counter + 1}", "checked": False})
-                tasks.append({"text": f"Zadanie na dzień {day_counter + 1}", "checked": False})
-                tasks.append({"text": f"Zadanie na dzień {day_counter + 1}", "checked": False})
+                tasks.append({"text": "Sprawdź kolokwium studenta w zakładce 'Kolokwia'", "checked": False})
+                tabs.append("Kolokwia")
+                tasks.append({"text": "Zatwierdź oceny końcowe studentów w zakładce 'Webdziekanat'", "checked": False})
+                tabs.append("Webdziekanat")
+                switches_initialized = False
+                generate_colloquium()
             current_screen = "task_screen"
             status_achieved_time = pygame.time.get_ticks()
             draw_task_screen()
@@ -804,7 +862,11 @@ while run:
                 for i in range(len(selected_lines)):
                     if selected_lines[i] != (i in colloquium_errors):
                         current_error_count += 1
-                current_screen = "day_end_screen"
+                for idx, task in enumerate(tasks):
+                    if "Kolokwia" in task["text"] or "sprawdzanie" in task["text"]:
+                        complete_task(idx)
+                        break
+                current_screen = "task_screen"
 
     else:
         switches_initialized = False
