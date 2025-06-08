@@ -1183,16 +1183,25 @@ def draw_final_screen():
     return menu_button_rect, leaderboard_button_rect
 
 
-def draw_leaderboard_screen():
-    screen.fill((255, 255, 255))
-    leaderboard = download_leaderboard()
+cached_leaderboard = None
 
+
+def draw_leaderboard_screen(local_leaderboard=None):
+    global cached_leaderboard
+    screen.fill((255, 255, 255))
     draw_text("Tablica wyników", title_font, 'black', screen, 0, -300)
+
+    if cached_leaderboard is None:
+        leaderboard = download_leaderboard()
+        if not leaderboard:
+            leaderboard = local_leaderboard
+        cached_leaderboard = leaderboard  # zapisujemy raz!
+    else:
+        leaderboard = cached_leaderboard  # używamy cache
 
     sorted_leaderboard = sorted(leaderboard, key=lambda x: x["score"], reverse=True)
 
     top_10 = sorted_leaderboard[:10]
-
     y_offset = -200
     for i, entry in enumerate(top_10):
         text = f"{i+1}. {entry['nickname']} - {entry['score']}"
@@ -1204,16 +1213,13 @@ def draw_leaderboard_screen():
             if entry["nickname"] == login_nickname:
                 your_entry = (idx + 1, entry)
                 break
-
         if your_entry and your_entry[0] > 10:
             draw_text("...", text_font, 'black', screen, 0, y_offset + 10 * 40)
-
             idx, entry = your_entry
             text = f"{idx}. {entry['nickname']} - {entry['score']}"
             draw_text(text, text_font, 'black', screen, 0, y_offset + 11 * 40)
 
     back_button_rect = draw_button("Wróć", 300, 60, SCREEN_WIDTH // 2, SCREEN_HEIGHT - 150)
-
     return back_button_rect
 
 
@@ -1514,9 +1520,11 @@ while run:
             elif leaderboard_button_rect.collidepoint(mouse_pos):
                 current_screen = "leaderboard_screen"
 
+
     elif current_screen == "leaderboard_screen":
         back_button_rect = draw_leaderboard_screen()
         if mouse_clicked and back_button_rect.collidepoint(mouse_pos):
+            cached_leaderboard = None
             current_screen = "menu"
 
     else:
