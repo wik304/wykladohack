@@ -1,9 +1,11 @@
+import sys
+import time
+
 import pygame
 from utilities import *
 import json
 import os
 import random
-import time
 from colloquium_bank import colloquium_bank
 
 SETTINGS_FILE = "settings.json"
@@ -63,6 +65,7 @@ def load_settings():
 
 
 pygame.init()
+clock = pygame.time.Clock()
 os.environ["SDL_VIDEO_CENTERED"] = "1"
 info = pygame.display.Info()
 SCREEN_WIDTH, SCREEN_HEIGHT = info.current_w, info.current_h
@@ -1012,6 +1015,115 @@ def update_family_health():
         member["status"] = ", ".join(statuses_set)
 
 
+def is_any_family_member_alive():
+    return any(member["alive"] for member in family_members)
+
+
+cups = [pygame.image.load(f'images/cup{i}.png') for i in range(1, 6)]
+cups = [pygame.transform.scale(cup, (200, 200)) for cup in cups]
+center_pos = ((SCREEN_WIDTH - 200) // 2, (SCREEN_HEIGHT - 200) // 2)
+
+
+class ConfettiParticle:
+    def __init__(self):
+        self.reset()
+
+    def reset(self):
+        self.x = random.randint(0, SCREEN_WIDTH)
+        self.y = random.randint(-SCREEN_HEIGHT, 0)
+        self.size = random.randint(4, 8)
+        self.color_base = random.choice([
+            (255, 0, 0), (0, 255, 0), (0, 0, 255),
+            (255, 255, 0), (255, 0, 255), (0, 255, 255)
+        ])
+        self.speed = random.uniform(0.5, 1.5)
+        self.angle = random.uniform(-1.0, 1.0)
+
+    def update(self):
+        self.y += self.speed
+        self.x += self.angle
+        if self.y > SCREEN_HEIGHT:
+            self.reset()
+
+    def draw(self, surface, alpha):
+        color = (*self.color_base, alpha)
+        confetti_surface = pygame.Surface((self.size, self.size), pygame.SRCALPHA)
+        pygame.draw.rect(confetti_surface, color, (0, 0, self.size, self.size))
+        surface.blit(confetti_surface, (self.x, self.y))
+
+
+def draw_confetti_effect(surface, particles, elapsed_time, total_duration):
+    if elapsed_time >= total_duration:
+        alpha = 0
+    else:
+        alpha = int(255 * (1 - (elapsed_time / total_duration)))
+
+    for p in particles:
+        p.update()
+        p.draw(surface, alpha)
+
+
+def animate_cup_and_confetti():
+    global clock
+    total_duration = 3.5
+    elapsed = 0
+    intervals = []
+    current_interval = 0.05
+    while elapsed < total_duration:
+        intervals.append(current_interval)
+        current_interval += 0.02
+        elapsed += current_interval
+
+    global selected_cup_index
+    selected_cup_index = random.randint(0, 4)
+    current_index = 0
+
+    for interval in intervals:
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                sys.exit()
+
+        screen.fill((255, 255, 255))
+        screen.blit(cups[current_index], center_pos)
+        pygame.display.flip()
+
+        pygame.time.delay(int(interval * 1000))
+        current_index = (current_index + 1) % len(cups)
+
+
+final_screen_start_time = None
+confetti_particles = [ConfettiParticle() for _ in range(100)]
+selected_cup_index = random.randint(0, 4)
+confetti_duration = 10
+showing_confetti = True
+
+
+def draw_final_screen():
+    global final_screen_start_time
+
+    if final_screen_start_time is None:
+        final_screen_start_time = time.time()
+
+    elapsed = time.time() - final_screen_start_time
+
+    screen.fill((255, 255, 255))
+
+    success_text = "Udało Ci się przejść grę!"
+    success_surface = text_font.render(success_text, True, (0, 0, 0))
+    success_rect = success_surface.get_rect(center=(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2 + 150))
+    screen.blit(success_surface, success_rect)
+
+    screen.blit(cups[selected_cup_index], center_pos)
+
+    if elapsed < confetti_duration:
+        draw_confetti_effect(screen, confetti_particles, elapsed, confetti_duration)
+
+    menu_button_rect = draw_button("Menu główne", 300, 60, SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2 + 250)
+
+    return menu_button_rect
+
+
 tasks = [{"text": "Wybierz swój zawód", "checked": False}]
 tabs = []
 
@@ -1058,6 +1170,9 @@ while run:
             if event.key == pygame.K_2:
                 money -= 100
             if event.key == pygame.K_3:
+                current_screen = "day_end_screen"
+            if event.key == pygame.K_4:
+                day_counter = 29
                 current_screen = "day_end_screen"
 
         if event.type == pygame.QUIT:
@@ -1228,30 +1343,35 @@ while run:
                 update_family_health()
                 food_checkbox_checked = False
                 money = calculated_total_sum
-                day_counter += 1
-                completed_tasks = 0
-                current_error_count = 0
-                day_start_time = time.time()
-                current_hour = 8
-                current_minute = 0
-                tasks.clear()
-                tabs.clear()
 
-                if day_counter == 1:
-                    tasks.append({"text": "Sprawdź kolokwium studenta w zakładce 'Kolokwia'", "checked": False})
-                    tabs.append("Kolokwia")
+                if day_counter + 1 >= 30 and is_any_family_member_alive():
+                    animate_cup_and_confetti()
+                    current_screen = "final_screen"
                 else:
-                    tasks.append({"text": "Sprawdź kolokwium studenta w zakładce 'Kolokwia'", "checked": False})
-                    tabs.append("Kolokwia")
-                    tasks.append(
-                        {"text": "Zatwierdź oceny końcowe studentów w zakładce 'Webdziekanat'", "checked": False})
-                    tabs.append("Webdziekanat")
-                    switches_initialized = False
-                    generate_colloquium()
-                current_screen = "task_screen"
-                status_achieved_time = pygame.time.get_ticks()
-                draw_task_screen()
-                save_settings()
+                    day_counter += 1
+                    completed_tasks = 0
+                    current_error_count = 0
+                    day_start_time = time.time()
+                    current_hour = 8
+                    current_minute = 0
+                    tasks.clear()
+                    tabs.clear()
+
+                    if day_counter == 1:
+                        tasks.append({"text": "Sprawdź kolokwium studenta w zakładce 'Kolokwia'", "checked": False})
+                        tabs.append("Kolokwia")
+                    else:
+                        tasks.append({"text": "Sprawdź kolokwium studenta w zakładce 'Kolokwia'", "checked": False})
+                        tabs.append("Kolokwia")
+                        tasks.append(
+                            {"text": "Zatwierdź oceny końcowe studentów w zakładce 'Webdziekanat'", "checked": False})
+                        tabs.append("Webdziekanat")
+                        switches_initialized = False
+                        generate_colloquium()
+                    current_screen = "task_screen"
+                    status_achieved_time = pygame.time.get_ticks()
+                    draw_task_screen()
+                    save_settings()
 
     elif current_screen == "colloquium_screen":
         line_rects, accept_button_rect = draw_colloquium_window()
@@ -1271,6 +1391,13 @@ while run:
                         complete_task(idx)
                         break
                 current_screen = "task_screen"
+
+    elif current_screen == "final_screen":
+        menu_button_rect = draw_final_screen()
+        if mouse_clicked:
+            if menu_button_rect.collidepoint(mouse_pos):
+                final_screen_animation_played = False
+                current_screen = "menu"
 
     else:
         switches_initialized = False
