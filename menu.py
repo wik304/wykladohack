@@ -795,7 +795,7 @@ def draw_day_end_window(day_counter):
                 if food_checkbox_checked:
                     cancel_rect = cancel_red.get_rect(center=frame_pos.center)
                     screen.blit(cancel_red, cancel_rect)
-                fullscreen_icon_rect = frame_pos
+                food_toggle_rect = frame_pos
 
         tooltip_label = entry["text"].split()[0]
         if tooltip_label in tooltips and text_rect.collidepoint(mouse_pos):
@@ -856,13 +856,12 @@ def draw_day_end_window(day_counter):
     for i, member in enumerate(family_members):
         cy = start_y + i * (2 * radius + spacing)
         status = member["status"]
-        if not member["alive"]:
-            continue
-        else:
-            statuses = status.split(", ")
-        if any(s in ["Martwy", "Martwa"] for s in statuses):
+
+        statuses = status.split(", ")
+
+        if "Martwy" in statuses or "Martwa" in statuses:
             pygame.draw.circle(screen, (0, 0, 0), (x + 2, cy + 2), radius)
-            pygame.draw.circle(screen, status_colors[statuses[0]], (x, cy), radius)
+            pygame.draw.circle(screen, (200, 0, 0), (x, cy), radius)
             status_text = other_font.render(statuses[0], True, (255, 255, 255))
             screen.blit(status_text, status_text.get_rect(center=(x, cy)))
         else:
@@ -870,10 +869,12 @@ def draw_day_end_window(day_counter):
             sx = x - total_width // 2 + radius
             for j, s in enumerate(statuses):
                 cx = sx + j * (2 * radius + 10)
+                color = status_colors.get(s, (0, 0, 0))
                 pygame.draw.circle(screen, (0, 0, 0), (cx + 2, cy + 2), radius)
-                pygame.draw.circle(screen, status_colors[s], (cx, cy), radius)
+                pygame.draw.circle(screen, color, (cx, cy), radius)
                 status_text = other_font.render(s, True, (0, 0, 0))
                 screen.blit(status_text, status_text.get_rect(center=(cx, cy)))
+
         role_text = other_font.render(member["role"], True, (0, 0, 0))
         screen.blit(role_text, role_text.get_rect(center=(x, cy + radius + 20)))
 
@@ -909,7 +910,9 @@ def draw_day_end_window(day_counter):
     if tooltip_to_draw:
         draw_tooltip(tooltip_to_draw, mouse_pos[0], mouse_pos[1] + 20)
 
-    return continue_rect, fullscreen_icon_rect, total_sum
+    if not is_any_family_member_alive():
+        return None, None, None
+    return continue_rect, food_toggle_rect, total_sum
 
 
 
@@ -1034,6 +1037,7 @@ def update_family_health():
             member["sick_and_hungry_days"] = member.get("sick_and_hungry_days", 0) + 1
             if member["sick_and_hungry_days"] >= 2 and random.random() < 0.25:
                 statuses_set = {"Martwy" if member["role"].endswith("n") else "Martwa"}
+                member["alive"] = False
         else:
             member["sick_and_hungry_days"] = 0
 
@@ -1223,7 +1227,7 @@ pause_start_time = None
 run = True
 
 
-def InitNewGame():
+def init_new_game():
     global selected_character, day_counter, completed_tasks, total_completed_tasks, current_status_idx, money, food_checkbox_checked, medicine_checkboxes_checked, family_members, login_nickname, login_password
     selected_character = None
     day_counter = 0
@@ -1240,6 +1244,32 @@ def InitNewGame():
     ]
     login_nickname = ""
     login_password = ""
+
+
+def draw_failure_screen():
+    global final_screen_start_time
+    if final_screen_start_time is None:
+        final_screen_start_time = time.time()
+
+    elapsed = time.time() - final_screen_start_time
+    screen.fill((255, 255, 255))
+
+    failure_text = "Wszyscy członkowie rodziny zmarli!"
+    retry_text = "Przegrałeś."
+
+    failure_surface = text_font.render(failure_text, True, (0, 0, 0))
+    retry_surface = text_font.render(retry_text, True, (0, 0, 0))
+
+    failure_rect = failure_surface.get_rect(center=(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2 - 50))
+    retry_rect = retry_surface.get_rect(center=(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2 + 20))
+
+    screen.blit(failure_surface, failure_rect)
+    screen.blit(retry_surface, retry_rect)
+
+    menu_button_rect = draw_button("Menu główne", 300, 60, SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2 + 150)
+    leaderboard_button_rect = draw_button("Tablica wyników", 300, 60, SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2 + 230)
+
+    return menu_button_rect, leaderboard_button_rect
 
 
 while run:
@@ -1431,7 +1461,11 @@ while run:
                     current_screen = "task_screen"
 
     elif current_screen == "day_end_screen":
-        continue_rect, food_toggle_rect, calculated_total_sum = draw_day_end_window(day_counter)
+        result = draw_day_end_window(day_counter)
+        if result == (None, None, None):
+            current_screen = "failure_screen"
+        else:
+            continue_rect, food_toggle_rect, calculated_total_sum = result
         hovering_food_checkbox = food_toggle_rect.collidepoint(mouse_pos)
         cannot_check = not food_checkbox_checked and calculated_total_sum + -food_price < 0
         if hovering_food_checkbox and cannot_check:
@@ -1457,6 +1491,8 @@ while run:
                 food_checkbox_checked = False
                 money = calculated_total_sum
 
+                if not is_any_family_member_alive():
+                    current_screen = "failure_screen"
                 if day_counter + 1 >= 30 and is_any_family_member_alive():
                     animate_cup_and_confetti()
 
@@ -1531,17 +1567,28 @@ while run:
             if menu_button_rect.collidepoint(mouse_pos):
                 final_screen_animation_played = False
                 current_screen = "menu"
-                InitNewGame()
+                init_new_game()
 
             elif leaderboard_button_rect.collidepoint(mouse_pos):
                 current_screen = "leaderboard_screen"
-                InitNewGame()
+                init_new_game()
 
     elif current_screen == "leaderboard_screen":
         back_button_rect = draw_leaderboard_screen()
         if mouse_clicked and back_button_rect.collidepoint(mouse_pos):
             cached_leaderboard = None
             current_screen = "menu"
+
+    elif current_screen == "failure_screen":
+        menu_button_rect, leaderboard_button_rect = draw_failure_screen()
+        if mouse_clicked:
+            if menu_button_rect.collidepoint(mouse_pos):
+                final_screen_animation_played = False
+                current_screen = "menu"
+                init_new_game()
+            elif leaderboard_button_rect.collidepoint(mouse_pos):
+                current_screen = "leaderboard_screen"
+                init_new_game()
 
     else:
         switches_initialized = False
