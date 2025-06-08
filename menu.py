@@ -1099,6 +1099,13 @@ confetti_duration = 10
 showing_confetti = True
 
 
+def calculate_final_score(days_survived, tasks_completed, money_left, total_errors, status_idx, achievements_unlocked):
+    status_bonus_table = [0, 50, 100, 150, 250, 400, 600, 800, 1000, 1500]
+    status_bonus = status_bonus_table[status_idx] if 0 <= status_idx < len(status_bonus_table) else 0
+    achievements_bonus = achievements_unlocked * 200
+    return (days_survived * 50) + (tasks_completed * 20) + money_left - (total_errors * 10) + status_bonus + achievements_bonus
+
+
 def draw_final_screen():
     global final_screen_start_time
 
@@ -1109,7 +1116,23 @@ def draw_final_screen():
 
     screen.fill((255, 255, 255))
 
-    success_text = "Udało Ci się przejść grę!"
+    days_survived = day_counter + 1
+    tasks_completed_total = total_completed_tasks
+    money_left = money
+    total_errors_made = current_error_count
+    current_status_index = current_status_idx
+    achievements_unlocked_count = sum(1 for ach in achievements if ach["unlocked"])
+
+    final_score = calculate_final_score(
+        days_survived,
+        tasks_completed_total,
+        money_left,
+        total_errors_made,
+        current_status_index,
+        achievements_unlocked_count
+    )
+
+    success_text = f"Wynik końcowy: {final_score}"
     success_surface = text_font.render(success_text, True, (0, 0, 0))
     success_rect = success_surface.get_rect(center=(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2 + 150))
     screen.blit(success_surface, success_rect)
