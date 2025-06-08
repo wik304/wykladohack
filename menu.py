@@ -1,12 +1,32 @@
 import sys
 import time
-
 import pygame
 from utilities import *
 import json
 import os
 import random
 from colloquium_bank import colloquium_bank
+import requests
+
+
+def download_leaderboard():
+    url = "https://49750f73-1884-4a17-8781-14af8f9d6f26-00-zzy76itq5v3v.picard.replit.dev/leaderboard"
+    response = requests.get(url)
+    if response.status_code == 200:
+        return response.json()
+    else:
+        return []
+
+
+def submit_score(nickname, score):
+    url = "https://49750f73-1884-4a17-8781-14af8f9d6f26-00-zzy76itq5v3v.picard.replit.dev/leaderboard"
+    payload = {
+        "nickname": nickname,
+        "score": score
+    }
+    response = requests.post(url, json=payload)
+    return response.status_code == 201
+
 
 SETTINGS_FILE = "settings.json"
 fullscreen_checked = False
@@ -156,6 +176,20 @@ progi = [4, 7, 10, 15, 20, 30, 42, 57, 75, 95]
 current_status_idx = 0
 total_completed_tasks = 0
 show_status_notification = False
+
+
+LEADERBOARD_FILE = "leaderboard.json"
+
+def load_leaderboard():
+    if os.path.exists(LEADERBOARD_FILE):
+        with open(LEADERBOARD_FILE, "r") as f:
+            return json.load(f)
+    return []
+
+def save_leaderboard(leaderboard):
+    with open(LEADERBOARD_FILE, "w") as f:
+        json.dump(leaderboard, f)
+
 
 
 def draw_checkbox_with_cancel(surface, x, y, checked):
@@ -1144,7 +1178,43 @@ def draw_final_screen():
 
     menu_button_rect = draw_button("Menu główne", 300, 60, SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2 + 250)
 
-    return menu_button_rect
+    leaderboard_button_rect = draw_button("Tablica wyników", 300, 60, SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2 + 330)
+
+    return menu_button_rect, leaderboard_button_rect
+
+
+def draw_leaderboard_screen():
+    screen.fill((255, 255, 255))
+    leaderboard = download_leaderboard()
+
+    draw_text("Tablica wyników", title_font, 'black', screen, 0, -300)
+
+    sorted_leaderboard = sorted(leaderboard, key=lambda x: x["score"], reverse=True)
+
+    top_10 = sorted_leaderboard[:10]
+
+    y_offset = -200
+    for i, entry in enumerate(top_10):
+        text = f"{i+1}. {entry['nickname']} - {entry['score']}"
+        draw_text(text, text_font, 'black', screen, 0, y_offset + i * 40)
+
+    if login_nickname:
+        your_entry = None
+        for idx, entry in enumerate(sorted_leaderboard):
+            if entry["nickname"] == login_nickname:
+                your_entry = (idx + 1, entry)
+                break
+
+        if your_entry and your_entry[0] > 10:
+            draw_text("...", text_font, 'black', screen, 0, y_offset + 10 * 40)
+
+            idx, entry = your_entry
+            text = f"{idx}. {entry['nickname']} - {entry['score']}"
+            draw_text(text, text_font, 'black', screen, 0, y_offset + 11 * 40)
+
+    back_button_rect = draw_button("Wróć", 300, 60, SCREEN_WIDTH // 2, SCREEN_HEIGHT - 150)
+
+    return back_button_rect
 
 
 tasks = [{"text": "Wybierz swój zawód", "checked": False}]
@@ -1369,6 +1439,26 @@ while run:
 
                 if day_counter + 1 >= 30 and is_any_family_member_alive():
                     animate_cup_and_confetti()
+
+                    days_survived = day_counter + 1
+                    tasks_completed_total = total_completed_tasks
+                    money_left = money
+                    total_errors_made = current_error_count
+                    current_status_index = current_status_idx
+                    achievements_unlocked_count = sum(1 for ach in achievements if ach["unlocked"])
+
+                    final_score = calculate_final_score(
+                        days_survived,
+                        tasks_completed_total,
+                        money_left,
+                        total_errors_made,
+                        current_status_index,
+                        achievements_unlocked_count
+                    )
+
+                    nickname = login_nickname or "Anonim"
+                    submit_score(nickname, final_score)
+
                     current_screen = "final_screen"
                 else:
                     day_counter += 1
@@ -1416,11 +1506,18 @@ while run:
                 current_screen = "task_screen"
 
     elif current_screen == "final_screen":
-        menu_button_rect = draw_final_screen()
+        menu_button_rect, leaderboard_button_rect = draw_final_screen()
         if mouse_clicked:
             if menu_button_rect.collidepoint(mouse_pos):
                 final_screen_animation_played = False
                 current_screen = "menu"
+            elif leaderboard_button_rect.collidepoint(mouse_pos):
+                current_screen = "leaderboard_screen"
+
+    elif current_screen == "leaderboard_screen":
+        back_button_rect = draw_leaderboard_screen()
+        if mouse_clicked and back_button_rect.collidepoint(mouse_pos):
+            current_screen = "menu"
 
     else:
         switches_initialized = False
