@@ -1,10 +1,32 @@
+import sys
+import time
 import pygame
 from utilities import *
 import json
 import os
 import random
-import time
 from colloquium_bank import colloquium_bank
+import requests
+
+
+def download_leaderboard():
+    url = "https://49750f73-1884-4a17-8781-14af8f9d6f26-00-zzy76itq5v3v.picard.replit.dev/leaderboard"
+    response = requests.get(url)
+    if response.status_code == 200:
+        return response.json()
+    else:
+        return []
+
+
+def submit_score(nickname, score):
+    url = "https://49750f73-1884-4a17-8781-14af8f9d6f26-00-zzy76itq5v3v.picard.replit.dev/leaderboard"
+    payload = {
+        "nickname": nickname,
+        "score": score
+    }
+    response = requests.post(url, json=payload)
+    return response.status_code == 201
+
 
 SETTINGS_FILE = "settings.json"
 fullscreen_checked = False
@@ -27,8 +49,6 @@ colloquium_checked_lines = []
 colloquium_errors = []
 timer_flag = True
 
-# 5c26ce - fioletowy
-
 blue = (20, 33, 61)
 zolty = (252, 163, 17)
 szary = (229, 229, 229)
@@ -50,17 +70,20 @@ def save_settings():
 def load_settings():
     global fullscreen_checked, easy_mode_checked, music_volume, sound_volume, day_counter, completed_tasks
     if os.path.exists(SETTINGS_FILE):
-        with open(SETTINGS_FILE, "r") as f:
-            settings = json.load(f)
-            fullscreen_checked = settings.get("fullscreen", False)
-            easy_mode_checked = settings.get("easy_mode", False)
-            music_volume = settings.get("music_volume", 100)
-            sound_volume = settings.get("sound_volume", 100)
-            # day_counter = settings.get("day_counter", 0)
-            # completed_tasks = settings.get("completed_tasks", 0)
+        try:
+            with open(SETTINGS_FILE, "r") as f:
+                settings = json.load(f)
+                fullscreen_checked = settings.get("fullscreen", False)
+                easy_mode_checked = settings.get("easy_mode", False)
+                music_volume = settings.get("music_volume", 100)
+                sound_volume = settings.get("sound_volume", 100)
+        except json.JSONDecodeError:
+            print("Błąd: settings.json jest uszkodzony. Przywracam domyślne ustawienia.")
+            os.remove(SETTINGS_FILE)
 
 
 pygame.init()
+clock = pygame.time.Clock()
 os.environ["SDL_VIDEO_CENTERED"] = "1"
 info = pygame.display.Info()
 SCREEN_WIDTH, SCREEN_HEIGHT = info.current_w, info.current_h
@@ -88,6 +111,22 @@ question_mark_icon = pygame.image.load('images/question_mark.png')
 switch_ok_icon = pygame.image.load('images/switch_ok.png')
 switch_no_icon = pygame.image.load('images/switch_no.png')
 red_frame = pygame.image.load('images/red_frame.png')
+red_frame_checked = pygame.image.load('images/red_frame_checked.png')
+calendar_icon = pygame.image.load('images/achievements/calendar_white.png')
+clock_blue = pygame.image.load('images/achievements/clock_blue.png')
+calendar_gold = pygame.image.load('images/achievements/calendar_gold.png')
+bid_green = pygame.image.load('images/achievements/bid_green.png')
+coins_incoming_red = pygame.transform.scale(pygame.image.load('images/achievements/coins_incoming_red.png'), (32, 32))
+cancel_gold = pygame.transform.scale(pygame.image.load('images/cancel_gold.png'), (32, 32))
+confirm_green = pygame.transform.scale(pygame.image.load('images/confirm_green.png'), (32, 32))
+cancel_red = pygame.transform.scale(pygame.image.load('images/cancel_red.png'), (32, 32))
+background_map = pygame.image.load('images/map.png')
+map_width, map_height = background_map.get_size()
+scale_factor = 1.08
+background_map = pygame.transform.scale(
+    background_map,
+    (int(map_width * scale_factor), int(map_height * scale_factor))
+)
 
 
 def scale_image(image, scale_factor):
@@ -95,12 +134,9 @@ def scale_image(image, scale_factor):
     return pygame.transform.scale(image, (int(width * scale_factor), int(height * scale_factor)))
 
 
-switch_ok_icon = scale_image(switch_ok_icon, 1)
+switch_ok_icon = scale_image(switch_ok_icon, 2)
 switch_no_icon = scale_image(switch_no_icon, 2)
-
-coin_icon = pygame.image.load('images/coin_icon.png')
-coin_icon = scale_image(coin_icon, 2)
-coins = 0
+money = 1000
 
 title_font = pygame.font.Font('font/VT323-Regular.ttf', 64)
 text_font = pygame.font.Font('font/VT323-Regular.ttf', 32)
@@ -140,6 +176,28 @@ total_completed_tasks = 0
 show_status_notification = False
 
 
+LEADERBOARD_FILE = "leaderboard.json"
+
+def load_leaderboard():
+    if os.path.exists(LEADERBOARD_FILE):
+        with open(LEADERBOARD_FILE, "r") as f:
+            return json.load(f)
+    return []
+
+def save_leaderboard(leaderboard):
+    with open(LEADERBOARD_FILE, "w") as f:
+        json.dump(leaderboard, f)
+
+
+
+def draw_checkbox_with_cancel(surface, x, y, checked):
+    surface.blit(frame, (x, y))
+    if checked:
+        cancel_rect = confirm_green.get_rect(center=(x + frame.get_width() // 2 - 1, y + frame.get_height() // 2 - 1))
+        surface.blit(confirm_green, cancel_rect)
+    return pygame.Rect(x, y, frame.get_width(), frame.get_height())
+
+
 def draw_image_top_left_from_center(image, surface, offset_x=0, offset_y=0):
     screen_width, screen_height = surface.get_size()
     center_x = screen_width // 2
@@ -163,34 +221,49 @@ def draw_settings():
     screen.fill((255, 255, 255))
     draw_text("Ustawienia", title_font, 'black', screen, 0, -200)
 
-    draw_text_top_left_from_center("Tryb pełnoekranowy", text_font, 'black', screen, -200, -100)
-    fullscreen_icon = checked_icon if fullscreen_checked else frame
-    fullscreen_icon_rect = draw_image_top_left_from_center(fullscreen_icon, screen, 170, -95)
+    tooltips = {
+        "Tryb pełnoekranowy": "Przełącz na pełny ekran lub okno.",
+        "Łatwy tryb gry": "Włącz łatwiejszy tryb – dodatkowe pieniądze i mniejsza kara za błędy.",
+        "Muzyka": "Regulacja głośności muzyki.",
+        "Dźwięki": "Regulacja głośności efektów dźwiękowych."
+    }
 
-    draw_text_top_left_from_center("Łatwy tryb gry", text_font, 'black', screen, -200, -60)
-    easy_mode_icon = checked_icon if easy_mode_checked else frame
-    easy_mode_icon_rect = draw_image_top_left_from_center(easy_mode_icon, screen, 170, -55)
+    mouse_hover_text = None
 
-    draw_text_top_left_from_center("Muzyka", text_font, 'black', screen, -200, -20)
+    fullscreen_text_rect = draw_text_top_left_from_center("Tryb pełnoekranowy", text_font, 'black', screen, -200, -100)
+    fullscreen_icon_rect = draw_checkbox_with_cancel(screen, SCREEN_WIDTH // 2 + 170, SCREEN_HEIGHT // 2 - 95, fullscreen_checked)
+    if fullscreen_text_rect.collidepoint(mouse_pos):
+        mouse_hover_text = tooltips["Tryb pełnoekranowy"]
+
+    easy_mode_text_rect = draw_text_top_left_from_center("Łatwy tryb gry", text_font, 'black', screen, -200, -60)
+    easy_mode_icon_rect = draw_checkbox_with_cancel(screen, SCREEN_WIDTH // 2 + 170, SCREEN_HEIGHT // 2 - 55, easy_mode_checked)
+    if easy_mode_text_rect.collidepoint(mouse_pos):
+        mouse_hover_text = tooltips["Łatwy tryb gry"]
+
+    music_text_rect = draw_text_top_left_from_center("Muzyka", text_font, 'black', screen, -200, -20)
     volume_bar_border_rect = draw_image_top_left_from_center(volume_bar_border_icon, screen, 30, -13)
     minus_icon_rect = draw_image_top_left_from_center(minus_icon, screen, 130, -15)
     plus_icon_rect = draw_image_top_left_from_center(plus_icon, screen, 170, -15)
     fill_width = int(84 * (music_volume / 100))
-    pygame.draw.rect(screen, 'black',
-                     pygame.Rect(volume_bar_border_rect.left + 3, volume_bar_border_rect.top + 3, fill_width, 20))
+    pygame.draw.rect(screen, 'black', pygame.Rect(volume_bar_border_rect.left + 3, volume_bar_border_rect.top + 3, fill_width, 20))
+    if music_text_rect.collidepoint(mouse_pos):
+        mouse_hover_text = tooltips["Muzyka"]
 
-    draw_text_top_left_from_center("Dźwięki", text_font, 'black', screen, -200, 20)
+    sound_text_rect = draw_text_top_left_from_center("Dźwięki", text_font, 'black', screen, -200, 20)
     sound_bar_border_rect = draw_image_top_left_from_center(volume_bar_border_icon, screen, 30, 27)
     sound_minus_icon_rect = draw_image_top_left_from_center(minus_icon, screen, 130, 25)
     sound_plus_icon_rect = draw_image_top_left_from_center(plus_icon, screen, 170, 25)
     fill_width_sound = int(84 * (sound_volume / 100))
-    pygame.draw.rect(screen, 'black',
-                     pygame.Rect(sound_bar_border_rect.left + 3, sound_bar_border_rect.top + 3, fill_width_sound, 20))
+    pygame.draw.rect(screen, 'black', pygame.Rect(sound_bar_border_rect.left + 3, sound_bar_border_rect.top + 3, fill_width_sound, 20))
+    if sound_text_rect.collidepoint(mouse_pos):
+        mouse_hover_text = tooltips["Dźwięki"]
 
     back_rect = draw_text("Powrót", text_font, 'black', screen, 0, 150)
-    return (
-        back_rect, fullscreen_icon_rect, easy_mode_icon_rect, minus_icon_rect, plus_icon_rect, sound_minus_icon_rect,
-        sound_plus_icon_rect)
+
+    if mouse_hover_text:
+        draw_tooltip(mouse_hover_text, mouse_pos[0], mouse_pos[1] + 20)
+
+    return (back_rect, fullscreen_icon_rect, easy_mode_icon_rect, minus_icon_rect, plus_icon_rect, sound_minus_icon_rect, sound_plus_icon_rect)
 
 
 def wrap_text(text, font, max_width):
@@ -234,8 +307,7 @@ def draw_task_box_with_checkbox(screen, x, y, text, checkbox_checked=False):
     pygame.draw.rect(screen, (255, 255, 255), (x, y, box_width, box_height), border_radius=border_radius)
     checkbox_x = x + checkbox_margin
     checkbox_y = y + (box_height // 2) - (frame.get_height() // 2)
-    icon = checked_icon if checkbox_checked else frame
-    screen.blit(icon, (checkbox_x, checkbox_y))
+    draw_checkbox_with_cancel(screen, checkbox_x, checkbox_y, checkbox_checked)
     text_x = checkbox_x + frame.get_width() + text_margin
     current_y = y + (box_height - text_height) // 2 if text_height < box_height else y + 10
     for line in wrapped_text:
@@ -260,25 +332,39 @@ def draw_top_bar():
     pygame.draw.rect(screen, (255, 255, 255), (0, 0, SCREEN_WIDTH, bar_height))
     pygame.draw.rect(screen, (0, 0, 0), (0, bar_height, SCREEN_WIDTH, 1))
     spacing = 40
+
     tab_surfaces = [text_font.render(tab, True, (0, 0, 0)) for tab in tabs]
     total_width = sum(s.get_width() for s in tab_surfaces) + spacing * (len(tabs) - 1)
     x = SCREEN_WIDTH - total_width - 20
     tab_rects = []
+
     for i, surf in enumerate(tab_surfaces):
         rect = surf.get_rect(topleft=(x, 15))
         screen.blit(surf, rect.topleft)
         tab_rects.append((tabs[i], rect))
         x += surf.get_width() + spacing
-    if day_counter > 0:
-        icon_y = 15
-        screen.blit(coin_icon, (15, icon_y))
-        coin_surf = text_font.render(f"x{coins}", True, (0, 0, 0))
-        screen.blit(coin_surf, (15 + coin_icon.get_width() + 8,
-                                icon_y + (coin_icon.get_height() - coin_surf.get_height()) // 2))
-        status_x = 15 + coin_icon.get_width() + 8 + coin_surf.get_width() + 20
+
+    if day_counter > 0 and current_screen != "day_end_screen":
+        money_font = pygame.font.Font('font/VT323-Regular.ttf', 40)
+        money_surf = money_font.render(f"${money}", True, (0, 0, 0))
+        money_rect = money_surf.get_rect()
+        money_rect.topleft = (15, (bar_height - money_rect.height) // 2)
+        screen.blit(money_surf, money_rect)
+
+        if money_rect.collidepoint(mouse_pos):
+            tooltip_text = "Aktualna wartość zaoszczędzonych pieniędzy."
+            draw_tooltip(tooltip_text, mouse_pos[0], mouse_pos[1] + 20)
+
+        status_x = 15 + money_surf.get_width() + 20
         status_text = f"Status: {statusy[current_status_idx]}"
         status_surf = text_font.render(status_text, True, (0, 0, 0))
+        status_rect = status_surf.get_rect(topleft=(status_x, 15))
         screen.blit(status_surf, (status_x, 15))
+
+        if status_rect.collidepoint(mouse_pos):
+            bonus = current_status_idx
+            tooltip_text = f"Dodatkowe +{bonus} monet za każde wykonane zadanie."
+            draw_tooltip(tooltip_text, mouse_pos[0], mouse_pos[1] + 20)
 
         if show_status_notification:
             elapsed = (pygame.time.get_ticks() - status_achieved_time) / 1000
@@ -287,6 +373,7 @@ def draw_top_bar():
                 screen.blit(notif_surf, (status_x + status_surf.get_width() + 10, 15))
             else:
                 show_status_notification = False
+
     return tab_rects
 
 
@@ -299,7 +386,10 @@ def get_circular_surface(image):
 
 
 def draw_character_select():
-    draw_task_screen()
+    screen.blit(background_map, (0, 0))
+    if timer_flag:
+        draw_timer()
+    draw_multiple_task_boxes(screen, tasks, 50, 180)
     char1_rect = char2_rect = None
     if selected_character is None:
         circular_char1 = get_circular_surface(character1_img)
@@ -451,9 +541,11 @@ def draw_login_form():
     else:
         show_info = False
     if show_info:
-        info_box_x = question_rect.right + 20
-        info_box_y = question_rect.top + 20
-        draw_info_box((info_box_x, info_box_y))
+        draw_tooltip(
+            "Login jest używany jako nazwa użytkownika do tabeli wyników. "
+            "Maksymalna liczba znaków dla loginu i hasła wynosi 15.",
+            mouse_pos[0], mouse_pos[1] + 20
+        )
 
 
 def calculate_final_grade(average):
@@ -572,49 +664,253 @@ food_price = 15
 penalty_for_error = 5
 easy_mode_grant = 15
 
+food_checkbox_checked = False
+global fullscreen_icon_rect
+global total_sum
+
+achievements = [
+    {"name": "Pierwszy dzień", "desc": "Ukończ pierwszy dzień gry.", "unlocked": False, "color": None},
+    {"name": "Mistrz Zadań", "desc": "Wykonaj 10 zadań.", "unlocked": False, "color": None},
+    {"name": "Wytrwały", "desc": "Przetrwaj 3 dni.", "unlocked": False, "color": None},
+    {"name": "Bogacz", "desc": "Zdobądź 100 monet.", "unlocked": False, "color": None},
+    {"name": "Bankrut", "desc": "Posiadaj ujemne saldo konta.", "unlocked": False, "color": None},
+]
+
+
+def update_achievements():
+    conditions = [
+        lambda: day_counter >= 1,
+        lambda: total_completed_tasks >= 10,
+        lambda: day_counter >= 3,
+        lambda: money >= 100,
+        lambda: money < 0,
+    ]
+
+    for i, condition in enumerate(conditions):
+        if condition() and not achievements[i]["unlocked"]:
+            achievements[i]["unlocked"] = True
+
+
+family_members = [
+    {"role": "Żona", "status": "Zdrowa", "hunger_days": 0, "sick_days": 0, "alive": True},
+    {"role": "Syn", "status": "Zdrowy", "hunger_days": 0, "sick_days": 0, "alive": True},
+    {"role": "Córka", "status": "Zdrowa", "hunger_days": 0, "sick_days": 0, "alive": True}
+]
+
+
+medicine_checkboxes_checked = {}
+
 
 def draw_day_end_window(day_counter):
+    global timer_flag, medicine_checkboxes_checked
     tabs.clear()
     tasks.clear()
-    global timer_flag, idx
     timer_flag = False
     draw_task_screen()
     timer_flag = True
-    day_counter = day_counter + 1
+
+    global medicine_price
+    medicine_price = 5 if easy_mode_checked else 10
+
+    draw_text(f"Koniec dnia {day_counter + 1}", title_font, "black", screen, 0, -350)
+
+    fullscreen_icon_rect = pygame.Rect(0, 0, 0, 0)
+
     draw_rounded_rect_from_center_offset(screen, -275, -225, 550, 450, (255, 255, 255), 10)
 
-    # status = 0 - zwykly text
-    # status = 1 - wymaga zaznaczenia
+    bonus_per_task = current_status_idx
 
-    # color = 0 - czarny 'black'
-    # color = 1 - czerwony 'red'
-    # color = 2 - ciemno zielony (255, 87, 51)
-
+    global day_end_data
     day_end_data = [
-        {"text": "Oszczędności", "status": 0, "color": "black", "value": coins},
+        {"text": "Oszczędności", "status": 0, "color": "black", "value": money},
         {"text": f"Wynagrodzenie ({completed_tasks})", "status": 0, "color": "black",
-         "value": completed_tasks * money_per_task},
-        {"text": "Wynajem", "status": 0, "color": "red", "value": rent_price},
-        {"text": "Jedzenie", "status": 1, "color": "red", "value": food_price},
+         "value": completed_tasks * (money_per_task + bonus_per_task)},
     ]
 
+    if current_error_count > 0:
+        day_end_data.append({
+            "text": f"Błędy ({current_error_count})",
+            "status": 0,
+            "color": "red",
+            "value": -penalty_for_error * current_error_count
+        })
+
+    day_end_data.extend([
+        {"text": "Wynajem", "status": 0, "color": "red", "value": -rent_price},
+        {"text": "Jedzenie", "status": 1, "color": "red", "value": -food_price},
+    ])
+
+    for member in family_members:
+        role = member["role"]
+        if "Chory" not in member["status"] and "Chora" not in member["status"]:
+            if role in medicine_checkboxes_checked:
+                del medicine_checkboxes_checked[role]
+
+    for member in family_members:
+        if "Chory" in member["status"] or "Chora" in member["status"]:
+            role = member["role"]
+            if role not in medicine_checkboxes_checked:
+                medicine_checkboxes_checked[role] = False
+            day_end_data.append({
+                "text": f"Leki ({role})",
+                "status": 1,
+                "color": "red",
+                "value": -medicine_price
+            })
+
+    tooltips = {
+        "Oszczędności": "Stan Twoich oszczędności na koniec poprzedniego dnia.",
+        "Wynagrodzenie": f"Zarobek za wykonane zadania w tym dniu."
+                         f" Wykonane zadania ({completed_tasks}), podstawowa wartość za zadanie ({money_per_task}),"
+                         f" dodatkowa gotówka za aktualny status ({bonus_per_task * completed_tasks})",
+        "Wynajem": "Opłata za wynajem mieszkania.",
+        "Jedzenie": "Koszt jedzenia – możesz zrezygnować, ale konsekwencje przyjdą później!",
+        "Kwota końcowa": "Łączna suma dostępnych środków na następny dzień.",
+        "Błędy": "Kara za błędy popełnione podczas pracy.",
+    }
+
+    tooltip_to_draw = None
     for idx, entry in enumerate(day_end_data):
-        draw_text_top_left_from_center(entry["text"], text_font, entry["color"], screen, -200, idx * 40 - 200)
+        text_rect = draw_text_top_left_from_center(entry["text"], text_font, entry["color"], screen, -200,
+                                                   idx * 40 - 200)
+        entry["text_rect"] = text_rect
         draw_text_top_right_from_center(entry["value"], text_font, entry["color"], screen, 200, idx * 40 - 200)
+
         if entry["status"] == 1:
-            fullscreen_icon_rect = draw_image_top_left_from_center(red_frame, screen, 220, idx * 40 - 198)
+            frame_pos = draw_image_top_left_from_center(red_frame, screen, 220, idx * 40 - 198)
+
+            if entry["text"].startswith("Leki ("):
+                role = entry["text"].split("(")[1].split(")")[0]
+                if medicine_checkboxes_checked.get(role, False):
+                    confirm_rect = cancel_red.get_rect(center=frame_pos.center)
+                    screen.blit(cancel_red, confirm_rect)
+
+                entry["checkbox_rect"] = frame_pos
+                entry["checkbox_role"] = role
+
+                if text_rect.collidepoint(mouse_pos):
+                    tooltip_to_draw = f"Opłata za leki dla: {role}"
+
+            elif entry["text"] == "Jedzenie":
+                if food_checkbox_checked:
+                    cancel_rect = cancel_red.get_rect(center=frame_pos.center)
+                    screen.blit(cancel_red, cancel_rect)
+                fullscreen_icon_rect = frame_pos
+
+        tooltip_label = entry["text"].split()[0]
+        if tooltip_label in tooltips and text_rect.collidepoint(mouse_pos):
+            tooltip_to_draw = tooltips[tooltip_label]
+
+    extra_lines = 0
 
     if easy_mode_checked:
-        idx += 1
-        draw_text_top_left_from_center("Zapomoga (tryb łatwy)", text_font, "black", screen, -200, idx * 40 - 200)
-        draw_text_top_right_from_center(easy_mode_grant, text_font, "black", screen, 200, idx * 40 - 200)
+        zap_idx = len(day_end_data)
+        zap_rect = draw_text_top_left_from_center("Zapomoga (tryb łatwy)", text_font, "black", screen, -200,
+                                                  zap_idx * 40 - 200)
+        draw_text_top_right_from_center(easy_mode_grant, text_font, "black", screen, 200, zap_idx * 40 - 200)
+        if zap_rect.collidepoint(mouse_pos):
+            tooltip_to_draw = "Dodatkowy bonus w łatwym trybie. Pomaga przetrwać trudne początki!"
+        extra_lines = 1
 
-    # draw_text(f"Dzień {day_counter} zakończony!", title_font, 'black', screen, 0, -150)
-    # draw_text("Gratulacje!", text_font, 'black', screen, 0, -50)
-    # draw_text(f"Ilość błędów: {current_error_count}", text_font, 'black', screen, 0, 0)
-    # draw_text(f"Ilość zrobionych zadań: {completed_tasks}", text_font, 'black', screen, 0, 50)
-    continue_rect = draw_button("Kontynuuj", 150, 50, SCREEN_WIDTH // 2 + 0, SCREEN_HEIGHT // 2 + 150)
-    return continue_rect
+    separator_y = (len(day_end_data) + extra_lines) * 40 - 200
+    draw_text_top_left_from_center("-------------------------------", text_font, "black", screen, -200, separator_y)
+
+    total_sum = 0
+    for entry in day_end_data:
+        if entry["text"] == "Jedzenie":
+            if food_checkbox_checked:
+                total_sum += entry["value"]
+        elif entry["text"].startswith("Leki ("):
+            role = entry["text"].split("(")[1].split(")")[0]
+            if medicine_checkboxes_checked.get(role, True):
+                total_sum += entry["value"]
+        else:
+            total_sum += entry["value"]
+
+    if easy_mode_checked:
+        total_sum += easy_mode_grant
+
+    total_lines = len(day_end_data) + extra_lines
+    final_text = f"${total_sum}"
+    final_text_rect = draw_text_top_right_from_center(final_text, text_font, "black", screen, 200,
+                                                      (total_lines + 1) * 40 - 200)
+
+    if final_text_rect.collidepoint(mouse_pos):
+        tooltip_to_draw = tooltips["Kwota końcowa"]
+
+    continue_rect = draw_button("Kontynuuj", 150, 50, SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2 + 150)
+
+    status_colors = {
+        "Zdrowa": (0, 200, 0), "Zdrowy": (0, 200, 0),
+        "Chora": (255, 165, 0), "Chory": (255, 165, 0),
+        "Głodna": (255, 215, 0), "Głodny": (255, 215, 0),
+        "Martwa": (200, 0, 0), "Martwy": (200, 0, 0)
+    }
+
+    radius = 50
+    spacing = 40
+    total_height = len(family_members) * (2 * radius + spacing) - spacing
+    start_y = SCREEN_HEIGHT // 2 - total_height // 2 + radius
+    x = SCREEN_WIDTH - 180
+
+    for i, member in enumerate(family_members):
+        cy = start_y + i * (2 * radius + spacing)
+        status = member["status"]
+        if not member["alive"]:
+            continue
+        else:
+            statuses = status.split(", ")
+        if any(s in ["Martwy", "Martwa"] for s in statuses):
+            pygame.draw.circle(screen, (0, 0, 0), (x + 2, cy + 2), radius)
+            pygame.draw.circle(screen, status_colors[statuses[0]], (x, cy), radius)
+            status_text = other_font.render(statuses[0], True, (255, 255, 255))
+            screen.blit(status_text, status_text.get_rect(center=(x, cy)))
+        else:
+            total_width = len(statuses) * (2 * radius + 10) - 10
+            sx = x - total_width // 2 + radius
+            for j, s in enumerate(statuses):
+                cx = sx + j * (2 * radius + 10)
+                pygame.draw.circle(screen, (0, 0, 0), (cx + 2, cy + 2), radius)
+                pygame.draw.circle(screen, status_colors[s], (cx, cy), radius)
+                status_text = other_font.render(s, True, (0, 0, 0))
+                screen.blit(status_text, status_text.get_rect(center=(cx, cy)))
+        role_text = other_font.render(member["role"], True, (0, 0, 0))
+        screen.blit(role_text, role_text.get_rect(center=(x, cy + radius + 20)))
+
+    achievement_icons = [calendar_icon, clock_blue, calendar_gold, bid_green, coins_incoming_red]
+
+    update_achievements()
+    ach_size = 64
+    ach_spacing = 10
+
+    unlocked_achievements = [
+        (ach, i) for i, ach in enumerate(achievements) if ach["unlocked"]
+    ]
+
+    ach_total_height = len(unlocked_achievements) * (
+            ach_size + ach_spacing) - ach_spacing if unlocked_achievements else 0
+    ach_start_y = (SCREEN_HEIGHT - ach_total_height) // 2
+    ach_x = 130
+    hovered_achievement = None
+
+    for j, (ach, i) in enumerate(unlocked_achievements):
+        top = ach_start_y + j * (ach_size + ach_spacing)
+        rect = pygame.Rect(ach_x - ach_size // 2, top, ach_size, ach_size)
+        if i < len(achievement_icons):
+            icon = pygame.transform.scale(achievement_icons[i], (ach_size, ach_size))
+            screen.blit(icon, rect)
+
+        if rect.collidepoint(mouse_pos):
+            hovered_achievement = ach
+
+    if hovered_achievement:
+        draw_tooltip(f"{hovered_achievement['name']}: {hovered_achievement['desc']}", mouse_pos[0], mouse_pos[1] + 20)
+
+    if tooltip_to_draw:
+        draw_tooltip(tooltip_to_draw, mouse_pos[0], mouse_pos[1] + 20)
+
+    return continue_rect, fullscreen_icon_rect, total_sum
+
 
 
 def generate_colloquium():
@@ -683,16 +979,274 @@ def draw_button(text, width, height, center_x, center_y):
     return rect
 
 
+def draw_tooltip(text, x, y):
+    padding = 10
+    font = info_font
+    lines = wrap_text(text, font, 300)
+    width = max(font.size(line)[0] for line in lines) + 2 * padding
+    height = len(lines) * font.get_height() + 2 * padding
+
+    pygame.draw.rect(screen, (0, 0, 0), (x, y, width, height))
+
+    for i, line in enumerate(lines):
+        line_surf = font.render(line, True, (255, 255, 255))
+        screen.blit(line_surf, (x + padding, y + padding + i * font.get_height()))
+
+
+medicine_checkboxes = {}
+
+
+def update_family_health():
+    for member in family_members:
+        statuses = member["status"].split(", ")
+        statuses_set = set(statuses)
+
+        if food_checkbox_checked:
+            statuses_set.discard("Głodny")
+            statuses_set.discard("Głodna")
+            member["days_without_food"] = 0
+        else:
+            member["days_without_food"] = member.get("days_without_food", 0) + 1
+
+        if member["days_without_food"] >= 1 and not member["status"] in ["Martwy", "Martwa"]:
+            hunger_status = "Głodny" if member["role"].endswith("n") else "Głodna"
+            statuses_set.discard("Zdrowy")
+            statuses_set.discard("Zdrowa")
+            statuses_set.add(hunger_status)
+
+            if "Chory" not in statuses_set and "Chora" not in statuses_set:
+                if random.random() < 0.25:
+                    illness_status = "Chory" if hunger_status == "Głodny" else "Chora"
+                    statuses_set.add(illness_status)
+
+        if food_checkbox_checked and ("Chory" in statuses_set or "Chora" in statuses_set):
+            member["days_sick"] = member.get("days_sick", 0) + 1
+            if member["days_sick"] >= 3:
+                statuses_set.discard("Chory")
+                statuses_set.discard("Chora")
+                statuses_set.add("Zdrowy" if member["role"].endswith("n") else "Zdrowa")
+                member["days_sick"] = 0
+        else:
+            member["days_sick"] = member.get("days_sick", 0)
+
+        if ("Chory" in statuses_set or "Chora" in statuses_set) and \
+           ("Głodny" in statuses_set or "Głodna" in statuses_set):
+            member["sick_and_hungry_days"] = member.get("sick_and_hungry_days", 0) + 1
+            if member["sick_and_hungry_days"] >= 2 and random.random() < 0.25:
+                statuses_set = {"Martwy" if member["role"].endswith("n") else "Martwa"}
+        else:
+            member["sick_and_hungry_days"] = 0
+
+        if not statuses_set:
+            statuses_set.add("Zdrowy" if member["role"].endswith("n") else "Zdrowa")
+        member["status"] = ", ".join(statuses_set)
+
+
+def is_any_family_member_alive():
+    return any(member["alive"] for member in family_members)
+
+
+cups = [pygame.image.load(f'images/cup{i}.png') for i in range(1, 6)]
+cups = [pygame.transform.scale(cup, (200, 200)) for cup in cups]
+center_pos = ((SCREEN_WIDTH - 200) // 2, (SCREEN_HEIGHT - 200) // 2)
+
+
+class ConfettiParticle:
+    def __init__(self):
+        self.reset()
+
+    def reset(self):
+        self.x = random.randint(0, SCREEN_WIDTH)
+        self.y = random.randint(-SCREEN_HEIGHT, 0)
+        self.size = random.randint(4, 8)
+        self.color_base = random.choice([
+            (255, 0, 0), (0, 255, 0), (0, 0, 255),
+            (255, 255, 0), (255, 0, 255), (0, 255, 255)
+        ])
+        self.speed = random.uniform(0.5, 1.5)
+        self.angle = random.uniform(-1.0, 1.0)
+
+    def update(self):
+        self.y += self.speed
+        self.x += self.angle
+        if self.y > SCREEN_HEIGHT:
+            self.reset()
+
+    def draw(self, surface, alpha):
+        color = (*self.color_base, alpha)
+        confetti_surface = pygame.Surface((self.size, self.size), pygame.SRCALPHA)
+        pygame.draw.rect(confetti_surface, color, (0, 0, self.size, self.size))
+        surface.blit(confetti_surface, (self.x, self.y))
+
+
+def draw_confetti_effect(surface, particles, elapsed_time, total_duration):
+    if elapsed_time >= total_duration:
+        alpha = 0
+    else:
+        alpha = int(255 * (1 - (elapsed_time / total_duration)))
+
+    for p in particles:
+        p.update()
+        p.draw(surface, alpha)
+
+
+def animate_cup_and_confetti():
+    global clock
+    total_duration = 3.5
+    elapsed = 0
+    intervals = []
+    current_interval = 0.05
+    while elapsed < total_duration:
+        intervals.append(current_interval)
+        current_interval += 0.02
+        elapsed += current_interval
+
+    global selected_cup_index
+    selected_cup_index = random.randint(0, 4)
+    current_index = 0
+
+    for interval in intervals:
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                sys.exit()
+
+        screen.fill((255, 255, 255))
+        screen.blit(cups[current_index], center_pos)
+        pygame.display.flip()
+
+        pygame.time.delay(int(interval * 1000))
+        current_index = (current_index + 1) % len(cups)
+
+
+final_screen_start_time = None
+confetti_particles = [ConfettiParticle() for _ in range(100)]
+selected_cup_index = random.randint(0, 4)
+confetti_duration = 10
+showing_confetti = True
+
+
+def calculate_final_score(days_survived, tasks_completed, money_left, total_errors, status_idx, achievements_unlocked):
+    status_bonus_table = [0, 50, 100, 150, 250, 400, 600, 800, 1000, 1500]
+    status_bonus = status_bonus_table[status_idx] if 0 <= status_idx < len(status_bonus_table) else 0
+    achievements_bonus = achievements_unlocked * 200
+    return (days_survived * 50) + (tasks_completed * 20) + money_left - (total_errors * 10) + status_bonus + achievements_bonus
+
+
+def draw_final_screen():
+    global final_screen_start_time
+
+    if final_screen_start_time is None:
+        final_screen_start_time = time.time()
+
+    elapsed = time.time() - final_screen_start_time
+
+    screen.fill((255, 255, 255))
+
+    days_survived = day_counter + 1
+    tasks_completed_total = total_completed_tasks
+    money_left = money
+    total_errors_made = current_error_count
+    current_status_index = current_status_idx
+    achievements_unlocked_count = sum(1 for ach in achievements if ach["unlocked"])
+
+    final_score = calculate_final_score(
+        days_survived,
+        tasks_completed_total,
+        money_left,
+        total_errors_made,
+        current_status_index,
+        achievements_unlocked_count
+    )
+
+    success_text = f"Wynik końcowy: {final_score}"
+    success_surface = text_font.render(success_text, True, (0, 0, 0))
+    success_rect = success_surface.get_rect(center=(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2 + 150))
+    screen.blit(success_surface, success_rect)
+
+    screen.blit(cups[selected_cup_index], center_pos)
+
+    if elapsed < confetti_duration:
+        draw_confetti_effect(screen, confetti_particles, elapsed, confetti_duration)
+
+    menu_button_rect = draw_button("Menu główne", 300, 60, SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2 + 250)
+
+    leaderboard_button_rect = draw_button("Tablica wyników", 300, 60, SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2 + 330)
+
+    return menu_button_rect, leaderboard_button_rect
+
+
+cached_leaderboard = None
+
+
+def draw_leaderboard_screen(local_leaderboard=None):
+    global cached_leaderboard
+    screen.fill((255, 255, 255))
+    draw_text("Tablica wyników", title_font, 'black', screen, 0, -300)
+
+    if cached_leaderboard is None:
+        leaderboard = download_leaderboard()
+        if not leaderboard:
+            leaderboard = local_leaderboard
+        cached_leaderboard = leaderboard
+    else:
+        leaderboard = cached_leaderboard
+
+    sorted_leaderboard = sorted(leaderboard, key=lambda x: x["score"], reverse=True)
+
+    top_10 = sorted_leaderboard[:10]
+    y_offset = -200
+    for i, entry in enumerate(top_10):
+        text = f"{i+1}. {entry['nickname']} - {entry['score']}"
+        draw_text(text, text_font, 'black', screen, 0, y_offset + i * 40)
+
+    if login_nickname:
+        your_entry = None
+        for idx, entry in enumerate(sorted_leaderboard):
+            if entry["nickname"] == login_nickname:
+                your_entry = (idx + 1, entry)
+                break
+        if your_entry and your_entry[0] > 10:
+            draw_text("...", text_font, 'black', screen, 0, y_offset + 10 * 40)
+            idx, entry = your_entry
+            text = f"{idx}. {entry['nickname']} - {entry['score']}"
+            draw_text(text, text_font, 'black', screen, 0, y_offset + 11 * 40)
+
+    back_button_rect = draw_button("Wróć", 300, 60, SCREEN_WIDTH // 2, SCREEN_HEIGHT - 150)
+    return back_button_rect
+
+
 tasks = [{"text": "Wybierz swój zawód", "checked": False}]
 tabs = []
 
 pause_start_time = None
 run = True
+
+
+def InitNewGame():
+    global selected_character, day_counter, completed_tasks, total_completed_tasks, current_status_idx, money, food_checkbox_checked, medicine_checkboxes_checked, family_members, login_nickname, login_password
+    selected_character = None
+    day_counter = 0
+    completed_tasks = 0
+    total_completed_tasks = 0
+    current_status_idx = 0
+    money = 1000
+    food_checkbox_checked = False
+    medicine_checkboxes_checked = {}
+    family_members = [
+        {"role": "Żona", "status": "Zdrowa", "hunger_days": 0, "sick_days": 0, "alive": True},
+        {"role": "Syn", "status": "Zdrowy", "hunger_days": 0, "sick_days": 0, "alive": True},
+        {"role": "Córka", "status": "Zdrowa", "hunger_days": 0, "sick_days": 0, "alive": True}
+    ]
+    login_nickname = ""
+    login_password = ""
+
+
 while run:
     mouse_pos = pygame.mouse.get_pos()
     mouse_clicked = False
 
-    if not game_paused:
+    if not game_paused and current_screen != "login_form":
         if day_start_time:
             elapsed_seconds = time.time() - day_start_time
             total_minutes = int(elapsed_seconds * 4)
@@ -723,6 +1277,16 @@ while run:
                         paused_duration = time.time() - pause_start_time
                         day_start_time += paused_duration
                         pause_start_time = None
+
+            if event.key == pygame.K_1:
+                money += 100
+            if event.key == pygame.K_2:
+                money -= 100
+            if event.key == pygame.K_3:
+                current_screen = "day_end_screen"
+            if event.key == pygame.K_4:
+                day_counter = 29
+                current_screen = "day_end_screen"
 
         if event.type == pygame.QUIT:
             run = False
@@ -852,10 +1416,11 @@ while run:
 
         if mouse_clicked:
             if accept_button_rect.collidepoint(mouse_pos):
-                current_error_count = sum(
+                errors_in_webdziekanat = sum(
                     1 for i, sw in enumerate(switch_buttons)
                     if sw.state != correct_states[i]
                 )
+                current_error_count += errors_in_webdziekanat
                 for idx, task in enumerate(tasks):
                     if "Webdziekanat" in task["text"]:
                         complete_task(idx)
@@ -866,30 +1431,80 @@ while run:
                     current_screen = "task_screen"
 
     elif current_screen == "day_end_screen":
-        continue_rect = draw_day_end_window(day_counter)
-        if mouse_clicked and continue_rect.collidepoint(mouse_pos):
-            day_counter += 1
-            completed_tasks = 0
-            current_error_count = 0
-            day_start_time = time.time()
-            current_hour = 8
-            current_minute = 0
-            tasks.clear()
-            tabs.clear()
-            if day_counter == 1:
-                tasks.append({"text": "Sprawdź kolokwium studenta w zakładce 'Kolokwia'", "checked": False})
-                tabs.append("Kolokwia")
-            else:
-                tasks.append({"text": "Sprawdź kolokwium studenta w zakładce 'Kolokwia'", "checked": False})
-                tabs.append("Kolokwia")
-                tasks.append({"text": "Zatwierdź oceny końcowe studentów w zakładce 'Webdziekanat'", "checked": False})
-                tabs.append("Webdziekanat")
-                switches_initialized = False
-                generate_colloquium()
-            current_screen = "task_screen"
-            status_achieved_time = pygame.time.get_ticks()
-            draw_task_screen()
-            save_settings()
+        continue_rect, food_toggle_rect, calculated_total_sum = draw_day_end_window(day_counter)
+        hovering_food_checkbox = food_toggle_rect.collidepoint(mouse_pos)
+        cannot_check = not food_checkbox_checked and calculated_total_sum + -food_price < 0
+        if hovering_food_checkbox and cannot_check:
+            draw_tooltip("Nie stać Cię na jedzenie — saldo byłoby ujemne.", mouse_pos[0], mouse_pos[1] + 20)
+
+        if mouse_clicked:
+            for entry in day_end_data:
+                if entry["text"].startswith("Leki (") and "checkbox_rect" in entry:
+                    if entry["checkbox_rect"].collidepoint(mouse_pos):
+                        role = entry["checkbox_role"]
+                        medicine_checkboxes_checked[role] = not medicine_checkboxes_checked.get(role, False)
+
+            if food_toggle_rect.collidepoint(mouse_pos):
+                if not food_checkbox_checked:
+                    potential_sum = calculated_total_sum + -food_price
+                    if potential_sum >= 0:
+                        food_checkbox_checked = True
+                else:
+                    food_checkbox_checked = False
+
+            if continue_rect.collidepoint(mouse_pos):
+                update_family_health()
+                food_checkbox_checked = False
+                money = calculated_total_sum
+
+                if day_counter + 1 >= 30 and is_any_family_member_alive():
+                    animate_cup_and_confetti()
+
+                    days_survived = day_counter + 1
+                    tasks_completed_total = total_completed_tasks
+                    money_left = money
+                    total_errors_made = current_error_count
+                    current_status_index = current_status_idx
+                    achievements_unlocked_count = sum(1 for ach in achievements if ach["unlocked"])
+
+                    final_score = calculate_final_score(
+                        days_survived,
+                        tasks_completed_total,
+                        money_left,
+                        total_errors_made,
+                        current_status_index,
+                        achievements_unlocked_count
+                    )
+
+                    nickname = login_nickname or "Anonim"
+                    submit_score(nickname, final_score)
+
+                    current_screen = "final_screen"
+                else:
+                    day_counter += 1
+                    completed_tasks = 0
+                    current_error_count = 0
+                    day_start_time = time.time()
+                    current_hour = 8
+                    current_minute = 0
+                    tasks.clear()
+                    tabs.clear()
+
+                    if day_counter == 1:
+                        tasks.append({"text": "Sprawdź kolokwium studenta w zakładce 'Kolokwia'", "checked": False})
+                        tabs.append("Kolokwia")
+                    else:
+                        tasks.append({"text": "Sprawdź kolokwium studenta w zakładce 'Kolokwia'", "checked": False})
+                        tabs.append("Kolokwia")
+                        tasks.append(
+                            {"text": "Zatwierdź oceny końcowe studentów w zakładce 'Webdziekanat'", "checked": False})
+                        tabs.append("Webdziekanat")
+                        switches_initialized = False
+                        generate_colloquium()
+                    current_screen = "task_screen"
+                    status_achieved_time = pygame.time.get_ticks()
+                    draw_task_screen()
+                    save_settings()
 
     elif current_screen == "colloquium_screen":
         line_rects, accept_button_rect = draw_colloquium_window()
@@ -899,14 +1514,34 @@ while run:
                     selected_lines[i] = not selected_lines[i]
             if accept_button_rect.collidepoint(mouse_pos):
                 current_error_count = 0
+                errors_in_colloquium = 0
                 for i in range(len(selected_lines)):
                     if selected_lines[i] != (i in colloquium_errors):
-                        current_error_count += 1
+                        errors_in_colloquium += 1
+                current_error_count += errors_in_colloquium
                 for idx, task in enumerate(tasks):
                     if "Kolokwia" in task["text"] or "sprawdzanie" in task["text"]:
                         complete_task(idx)
                         break
                 current_screen = "task_screen"
+
+    elif current_screen == "final_screen":
+        menu_button_rect, leaderboard_button_rect = draw_final_screen()
+        if mouse_clicked:
+            if menu_button_rect.collidepoint(mouse_pos):
+                final_screen_animation_played = False
+                current_screen = "menu"
+                InitNewGame()
+
+            elif leaderboard_button_rect.collidepoint(mouse_pos):
+                current_screen = "leaderboard_screen"
+                InitNewGame()
+
+    elif current_screen == "leaderboard_screen":
+        back_button_rect = draw_leaderboard_screen()
+        if mouse_clicked and back_button_rect.collidepoint(mouse_pos):
+            cached_leaderboard = None
+            current_screen = "menu"
 
     else:
         switches_initialized = False
