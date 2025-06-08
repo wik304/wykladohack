@@ -49,8 +49,6 @@ colloquium_checked_lines = []
 colloquium_errors = []
 timer_flag = True
 
-# 5c26ce - fioletowy
-
 blue = (20, 33, 61)
 zolty = (252, 163, 17)
 szary = (229, 229, 229)
@@ -1003,7 +1001,6 @@ def update_family_health():
         statuses = member["status"].split(", ")
         statuses_set = set(statuses)
 
-        # Jeśli dostali jedzenie, głód znika
         if food_checkbox_checked:
             statuses_set.discard("Głodny")
             statuses_set.discard("Głodna")
@@ -1011,20 +1008,17 @@ def update_family_health():
         else:
             member["days_without_food"] = member.get("days_without_food", 0) + 1
 
-        # Głód → dodaj status Głodny/Głodna
         if member["days_without_food"] >= 1 and not member["status"] in ["Martwy", "Martwa"]:
             hunger_status = "Głodny" if member["role"].endswith("n") else "Głodna"
             statuses_set.discard("Zdrowy")
             statuses_set.discard("Zdrowa")
             statuses_set.add(hunger_status)
 
-            # 25% szans na zachorowanie, jeśli nie jest chory
             if "Chory" not in statuses_set and "Chora" not in statuses_set:
                 if random.random() < 0.25:
                     illness_status = "Chory" if hunger_status == "Głodny" else "Chora"
                     statuses_set.add(illness_status)
 
-        # Leczenie — jeśli dostali jedzenie i są chorzy
         if food_checkbox_checked and ("Chory" in statuses_set or "Chora" in statuses_set):
             member["days_sick"] = member.get("days_sick", 0) + 1
             if member["days_sick"] >= 3:
@@ -1035,7 +1029,6 @@ def update_family_health():
         else:
             member["days_sick"] = member.get("days_sick", 0)
 
-        # Umieranie
         if ("Chory" in statuses_set or "Chora" in statuses_set) and \
            ("Głodny" in statuses_set or "Głodna" in statuses_set):
             member["sick_and_hungry_days"] = member.get("sick_and_hungry_days", 0) + 1
@@ -1195,9 +1188,9 @@ def draw_leaderboard_screen(local_leaderboard=None):
         leaderboard = download_leaderboard()
         if not leaderboard:
             leaderboard = local_leaderboard
-        cached_leaderboard = leaderboard  # zapisujemy raz!
+        cached_leaderboard = leaderboard
     else:
-        leaderboard = cached_leaderboard  # używamy cache
+        leaderboard = cached_leaderboard
 
     sorted_leaderboard = sorted(leaderboard, key=lambda x: x["score"], reverse=True)
 
@@ -1228,6 +1221,27 @@ tabs = []
 
 pause_start_time = None
 run = True
+
+
+def InitNewGame():
+    global selected_character, day_counter, completed_tasks, total_completed_tasks, current_status_idx, money, food_checkbox_checked, medicine_checkboxes_checked, family_members, login_nickname, login_password
+    selected_character = None
+    day_counter = 0
+    completed_tasks = 0
+    total_completed_tasks = 0
+    current_status_idx = 0
+    money = 1000
+    food_checkbox_checked = False
+    medicine_checkboxes_checked = {}
+    family_members = [
+        {"role": "Żona", "status": "Zdrowa", "hunger_days": 0, "sick_days": 0, "alive": True},
+        {"role": "Syn", "status": "Zdrowy", "hunger_days": 0, "sick_days": 0, "alive": True},
+        {"role": "Córka", "status": "Zdrowa", "hunger_days": 0, "sick_days": 0, "alive": True}
+    ]
+    login_nickname = ""
+    login_password = ""
+
+
 while run:
     mouse_pos = pygame.mouse.get_pos()
     mouse_clicked = False
@@ -1517,9 +1531,11 @@ while run:
             if menu_button_rect.collidepoint(mouse_pos):
                 final_screen_animation_played = False
                 current_screen = "menu"
+                InitNewGame()
+
             elif leaderboard_button_rect.collidepoint(mouse_pos):
                 current_screen = "leaderboard_screen"
-
+                InitNewGame()
 
     elif current_screen == "leaderboard_screen":
         back_button_rect = draw_leaderboard_screen()
