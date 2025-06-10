@@ -1452,7 +1452,16 @@ def generate_mail():
                 {"text": "Tym razem zaliczam.", "effect": lambda: change_money(-5)},
                 {"text": "Niestety nie mogę zaakceptować.", "effect": lambda: add_error()}
             ]
-        }
+        },
+        {
+            "text": "Witam, jezeli nie wstawi mi Doktor oceny zaliczającej, spotkamy sie w ciemnej alejce",
+            "effect": lambda: None,
+            "responses": [
+                {"text": "Dobrze, przepraszam. Już wstawiam.", "effect": lambda: change_money(-10)},
+                {"text": "Witam, Dziekan został powiadomiony.", "effect": lambda: None},
+                {"text": "Dzień dobry, w takim razie do zobaczenia, 3x3 minuty full mma.", "effect": lambda: change_money(-5)}
+            ]
+        },
     ]
 
     selected = random.sample(possible_messages, k=random.randint(1, 3))
