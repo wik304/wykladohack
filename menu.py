@@ -48,6 +48,8 @@ selected_lines = []
 colloquium_checked_lines = []
 colloquium_errors = []
 timer_flag = True
+active_event = None
+event_button_rect = None
 
 blue = (20, 33, 61)
 zolty = (252, 163, 17)
@@ -795,7 +797,7 @@ def draw_day_end_window(day_counter):
                 if food_checkbox_checked:
                     cancel_rect = cancel_red.get_rect(center=frame_pos.center)
                     screen.blit(cancel_red, cancel_rect)
-                fullscreen_icon_rect = frame_pos
+                food_toggle_rect = frame_pos
 
         tooltip_label = entry["text"].split()[0]
         if tooltip_label in tooltips and text_rect.collidepoint(mouse_pos):
@@ -856,13 +858,12 @@ def draw_day_end_window(day_counter):
     for i, member in enumerate(family_members):
         cy = start_y + i * (2 * radius + spacing)
         status = member["status"]
-        if not member["alive"]:
-            continue
-        else:
-            statuses = status.split(", ")
-        if any(s in ["Martwy", "Martwa"] for s in statuses):
+
+        statuses = status.split(", ")
+
+        if "Martwy" in statuses or "Martwa" in statuses:
             pygame.draw.circle(screen, (0, 0, 0), (x + 2, cy + 2), radius)
-            pygame.draw.circle(screen, status_colors[statuses[0]], (x, cy), radius)
+            pygame.draw.circle(screen, (200, 0, 0), (x, cy), radius)
             status_text = other_font.render(statuses[0], True, (255, 255, 255))
             screen.blit(status_text, status_text.get_rect(center=(x, cy)))
         else:
@@ -870,10 +871,12 @@ def draw_day_end_window(day_counter):
             sx = x - total_width // 2 + radius
             for j, s in enumerate(statuses):
                 cx = sx + j * (2 * radius + 10)
+                color = status_colors.get(s, (0, 0, 0))
                 pygame.draw.circle(screen, (0, 0, 0), (cx + 2, cy + 2), radius)
-                pygame.draw.circle(screen, status_colors[s], (cx, cy), radius)
+                pygame.draw.circle(screen, color, (cx, cy), radius)
                 status_text = other_font.render(s, True, (0, 0, 0))
                 screen.blit(status_text, status_text.get_rect(center=(cx, cy)))
+
         role_text = other_font.render(member["role"], True, (0, 0, 0))
         screen.blit(role_text, role_text.get_rect(center=(x, cy + radius + 20)))
 
@@ -909,7 +912,9 @@ def draw_day_end_window(day_counter):
     if tooltip_to_draw:
         draw_tooltip(tooltip_to_draw, mouse_pos[0], mouse_pos[1] + 20)
 
-    return continue_rect, fullscreen_icon_rect, total_sum
+    if not is_any_family_member_alive():
+        return None, None, None
+    return continue_rect, food_toggle_rect, total_sum
 
 
 
@@ -956,7 +961,7 @@ def draw_colloquium_window():
         y += 40
         line_rects.append(text_rect)
 
-    accept_button_rect = draw_button("Zatwierdź sprawdzanie", 300, 50, SCREEN_WIDTH // 2 + 0, SCREEN_HEIGHT // 2 + 400)
+    accept_button_rect = draw_button("Zatwierdź sprawdzanie", 300, 50, SCREEN_WIDTH // 2 + 150, SCREEN_HEIGHT // 2 + 400)
 
     return line_rects, accept_button_rect
 
@@ -1034,6 +1039,7 @@ def update_family_health():
             member["sick_and_hungry_days"] = member.get("sick_and_hungry_days", 0) + 1
             if member["sick_and_hungry_days"] >= 2 and random.random() < 0.25:
                 statuses_set = {"Martwy" if member["role"].endswith("n") else "Martwa"}
+                member["alive"] = False
         else:
             member["sick_and_hungry_days"] = 0
 
@@ -1223,7 +1229,7 @@ pause_start_time = None
 run = True
 
 
-def InitNewGame():
+def init_new_game():
     global selected_character, day_counter, completed_tasks, total_completed_tasks, current_status_idx, money, food_checkbox_checked, medicine_checkboxes_checked, family_members, login_nickname, login_password
     selected_character = None
     day_counter = 0
@@ -1240,6 +1246,264 @@ def InitNewGame():
     ]
     login_nickname = ""
     login_password = ""
+    answered_mails.clear()
+
+
+def draw_failure_screen():
+    global final_screen_start_time
+    if final_screen_start_time is None:
+        final_screen_start_time = time.time()
+
+    elapsed = time.time() - final_screen_start_time
+    screen.fill((255, 255, 255))
+
+    failure_text = "Wszyscy członkowie rodziny zmarli!"
+    retry_text = "Przegrałeś."
+
+    failure_surface = text_font.render(failure_text, True, (0, 0, 0))
+    retry_surface = text_font.render(retry_text, True, (0, 0, 0))
+
+    failure_rect = failure_surface.get_rect(center=(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2 - 50))
+    retry_rect = retry_surface.get_rect(center=(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2 + 20))
+
+    screen.blit(failure_surface, failure_rect)
+    screen.blit(retry_surface, retry_rect)
+
+    menu_button_rect = draw_button("Menu główne", 300, 60, SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2 + 150)
+    leaderboard_button_rect = draw_button("Tablica wyników", 300, 60, SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2 + 230)
+
+    return menu_button_rect, leaderboard_button_rect
+
+
+def trigger_random_event():
+    global active_event, current_screen
+    event = random.choice(random_events)
+    active_event = event
+    current_screen = "event_popup"
+
+
+random_events = [
+    {
+        "text": "Ponieważ zapomniałeś zamknąć okno idąc spać, twoja żona zachorowała.",
+        "effect": lambda: infect_family_member("Żona")
+    },
+    {
+        "text": "Zgubiłeś portfel w autobusie. Straciłeś 50 monet.",
+        "effect": lambda: change_money(-50)
+    },
+    {
+        "text": "Twój syn znalazł 20 monet na ulicy i przyniósł je do domu.",
+        "effect": lambda: change_money(20)
+    },
+    {
+        "text": "Zadzwonił znajomy z ofertą drobnej pracy. Zarobiłeś 30 monet.",
+        "effect": lambda: change_money(30)
+    },
+    {
+        "text": "Z powodu zmęczenia popełniłeś błąd w zadaniu.",
+        "effect": lambda: add_error()
+    },
+    {
+        "text": "Twoja córka zaraziła się w szkole i przez najbliższe kilka dni musi zostać w domu.",
+        "effect": lambda: infect_family_member("Córka")
+    },
+    {
+        "text": "Twój komputer się zawiesił. Straciłeś postęp w jednym zadaniu.",
+        "effect": lambda: undo_random_task()
+    },
+    {
+        "text": "Otrzymałeś premię za dobre wyniki w pracy! +75 monet.",
+        "effect": lambda: change_money(75)
+    },
+    {
+        "text": "Sąsiad przyniósł ci ciasto i twoja rodzina czuje się lepiej.",
+        "effect": lambda: heal_random_family_member()
+    },
+]
+
+
+def change_money(amount):
+    global money
+    money += amount
+
+
+def add_error():
+    global current_error_count
+    current_error_count += 1
+
+
+def infect_family_member(role):
+    for member in family_members:
+        if member["role"] == role and "Chory" not in member["status"] and "Chora" not in member["status"]:
+            member["status"] += ", " + ("Chory" if role.endswith("n") else "Chora")
+
+
+def heal_random_family_member():
+    random.shuffle(family_members)
+    for member in family_members:
+        if "Chory" in member["status"] or "Chora" in member["status"]:
+            member["status"] = member["status"].replace("Chory", "Zdrowy").replace("Chora", "Zdrowa")
+            break
+
+
+def undo_random_task():
+    global completed_tasks
+    incomplete = [task for task in tasks if task["checked"]]
+    if incomplete:
+        task = random.choice(incomplete)
+        task["checked"] = False
+        completed_tasks = max(0, completed_tasks - 1)
+
+
+def draw_event_popup():
+    global event_button_rect
+    screen.fill((240, 240, 240))
+
+    if active_event:
+        padding = 20
+        max_text_width = SCREEN_WIDTH - 200
+
+        wrapped = wrap_text(active_event["text"], text_font, max_text_width)
+
+        line_height = text_font.get_height()
+        text_widths = [text_font.size(line)[0] for line in wrapped]
+        content_width = max(text_widths) if text_widths else 200
+
+        box_width = content_width + 2 * padding
+        box_height = len(wrapped) * line_height + 2 * padding + 70
+
+        box_x = (SCREEN_WIDTH - box_width) // 2
+        box_y = (SCREEN_HEIGHT - box_height) // 2
+
+        draw_rounded_rect(screen, box_x, box_y, box_width, box_height, (255, 255, 255), 10)
+
+        y_offset = box_y + padding
+        for line in wrapped:
+            line_surf = text_font.render(line, True, (0, 0, 0))
+            text_x = box_x + (box_width - line_surf.get_width()) // 2
+            screen.blit(line_surf, (text_x, y_offset))
+            y_offset += line_height
+
+        event_button_rect = draw_button("OK", 150, 50, SCREEN_WIDTH // 2, y_offset + 30)
+
+
+mail_messages = []
+last_mail_day = -1
+answered_mails = set()
+
+
+def generate_mail():
+    global mail_messages, last_mail_day
+
+    if last_mail_day == day_counter:
+        return
+
+    last_mail_day = day_counter
+    mail_messages = []
+
+    possible_messages = [
+        {
+            "text": "Dzień dobry, czy można pisać kolosa w innym terminie?",
+            "effect": lambda: None,
+            "responses": [
+                {"text": "Tak, proszę zgłosić się po zajęciach.", "effect": lambda: change_money(-5)},
+                {"text": "Nie, obowiązuje termin z sylabusa.", "effect": lambda: add_error()},
+                {"text": "Proszę napisać podanie do dziekana.", "effect": lambda: None}
+            ]
+        },
+        {
+            "text": "Ocena 3 to chyba pomyłka, prawda?",
+            "effect": lambda: None,
+            "responses": [
+                {"text": "Nie, wszystko się zgadza.", "effect": lambda: None},
+                {"text": "Możemy porozmawiać po zajęciach.", "effect": lambda: change_money(-5)},
+                {"text": "Sprawdzę jeszcze raz.", "effect": lambda: None}
+            ]
+        },
+        {
+            "text": "Czy wpisze mi Pan ocenę wyżej, bo jestem blisko progu?",
+            "effect": lambda: None,
+            "responses": [
+                {"text": "Nie, obowiązuje regulamin.", "effect": lambda: None},
+                {"text": "Dobrze, zrobię wyjątek.", "effect": lambda: change_money(-10)},
+                {"text": "Zgłoś się do poprawy.", "effect": lambda: None}
+            ]
+        },
+        {
+            "text": "Proszę o opinię do awansu zawodowego dr Kowalskiego.",
+            "effect": lambda: None,
+            "responses": [
+                {"text": "Wystawię opinię pozytywną.", "effect": lambda: change_money(10)},
+                {"text": "Nie znam jego pracy.", "effect": lambda: None},
+            ]
+        },
+        {
+            "text": "Czy może Pan zmienić godzinę zajęć? Mam wtedy angielski.",
+            "effect": lambda: None,
+            "responses": [
+                {"text": "Niestety nie, harmonogram jest ustalony.", "effect": lambda: None},
+                {"text": "Zobaczę, co da się zrobić.", "effect": lambda: change_money(-5)},
+            ]
+        },
+        {
+            "text": "Panie Profesorze, wysłałem pracę 5 minut po czasie, czy to problem?",
+            "effect": lambda: None,
+            "responses": [
+                {"text": "Tym razem zaliczam.", "effect": lambda: change_money(-5)},
+                {"text": "Niestety nie mogę zaakceptować.", "effect": lambda: add_error()}
+            ]
+        }
+    ]
+
+    selected = random.sample(possible_messages, k=random.randint(1, 3))
+    for i, msg in enumerate(selected):
+        msg["id"] = f"mail_{day_counter}_{i}"
+        msg["effect"]()
+        mail_messages.append(msg)
+
+
+def draw_mail_screen():
+    global answered_mails
+    screen.fill(szary)
+    draw_top_bar()
+
+    y = 150
+    button_height = 40
+    padding = 10
+
+    for msg in mail_messages:
+        mail_id = msg["id"]
+        is_answered = mail_id in answered_mails
+
+        box_height = 80
+        if not is_answered and "responses" in msg:
+            box_height += (button_height + padding) * len(msg["responses"]) + padding
+
+        draw_rounded_rect(screen, 300, y, SCREEN_WIDTH - 600, box_height, (255, 255, 255), 10)
+        line_surf = text_font.render(msg["text"], True, (0, 0, 0))
+        screen.blit(line_surf, (320, y + 20))
+
+        if not is_answered and "responses" in msg:
+            for idx, resp in enumerate(msg["responses"]):
+                btn_rect_shadow = pygame.Rect(320, y + 60 + idx * (button_height + padding) + 2, 500 + 2, button_height)
+                pygame.draw.rect(screen, (0, 0, 0), btn_rect_shadow, border_radius=6)
+                btn_rect = pygame.Rect(320, y + 60 + idx * (button_height + padding), 500, button_height)
+                pygame.draw.rect(screen, zolty, btn_rect, border_radius=6)
+                text_surf = info_font.render(resp["text"], True, blue)
+                text_rect = text_surf.get_rect(center=btn_rect.center)
+                screen.blit(text_surf, text_rect)
+
+                if mouse_clicked and btn_rect.collidepoint(mouse_pos):
+                    answered_mails.add(mail_id)
+                    resp["effect"]()
+                    break
+
+        y += box_height + 20
+
+    draw_button("Powrót", 150, 50, SCREEN_WIDTH // 2 + 0, SCREEN_HEIGHT // 2 + 400)
+
+    if mouse_clicked:
+        current_screen = "task_screen"
 
 
 while run:
@@ -1252,6 +1516,10 @@ while run:
             total_minutes = int(elapsed_seconds * 4)
             current_hour = 8 + (total_minutes // 60)
             current_minute = total_minutes % 60
+
+            if timer_flag and not game_paused and current_screen == "task_screen" and random.random() < 0.00002:
+                trigger_random_event()
+
             if current_hour >= 16:
                 current_hour = 16
                 current_minute = 0
@@ -1379,6 +1647,9 @@ while run:
                     complete_task(2)
                     generate_colloquium()
                     current_screen = "colloquium_screen"
+                elif tab_rect.collidepoint(mouse_pos) and tab_name == "Poczta":
+                    generate_mail()
+                    current_screen = "mail_screen"
 
     elif current_screen == "login_form":
         draw_login_form()
@@ -1400,6 +1671,9 @@ while run:
                     "text": "Otwórz zakładkę 'Webdziekanat', aby zatwierdzić oceny końcowe studentów",
                     "checked": False
                 })
+                if "Poczta" not in tabs and day_counter >= 1:
+                    tabs.append("Poczta")
+                    tasks.append({"text": "Sprawdź swoją pocztę klikając zakładkę 'Poczta'", "checked": False})
                 current_screen = "task_screen"
 
     elif current_screen == "webdziekanat_screen":
@@ -1431,7 +1705,11 @@ while run:
                     current_screen = "task_screen"
 
     elif current_screen == "day_end_screen":
-        continue_rect, food_toggle_rect, calculated_total_sum = draw_day_end_window(day_counter)
+        result = draw_day_end_window(day_counter)
+        if result == (None, None, None):
+            current_screen = "failure_screen"
+        else:
+            continue_rect, food_toggle_rect, calculated_total_sum = result
         hovering_food_checkbox = food_toggle_rect.collidepoint(mouse_pos)
         cannot_check = not food_checkbox_checked and calculated_total_sum + -food_price < 0
         if hovering_food_checkbox and cannot_check:
@@ -1457,6 +1735,8 @@ while run:
                 food_checkbox_checked = False
                 money = calculated_total_sum
 
+                if not is_any_family_member_alive():
+                    current_screen = "failure_screen"
                 if day_counter + 1 >= 30 and is_any_family_member_alive():
                     animate_cup_and_confetti()
 
@@ -1490,15 +1770,18 @@ while run:
                     tasks.clear()
                     tabs.clear()
 
-                    if day_counter == 1:
-                        tasks.append({"text": "Sprawdź kolokwium studenta w zakładce 'Kolokwia'", "checked": False})
-                        tabs.append("Kolokwia")
+                    if day_counter == 0:
+                        continue
                     else:
-                        tasks.append({"text": "Sprawdź kolokwium studenta w zakładce 'Kolokwia'", "checked": False})
+                        tasks.append(
+                            {"text": "Sprawdź kolokwium studenta w zakładce 'Kolokwia'", "checked": False})
                         tabs.append("Kolokwia")
                         tasks.append(
                             {"text": "Zatwierdź oceny końcowe studentów w zakładce 'Webdziekanat'", "checked": False})
                         tabs.append("Webdziekanat")
+                        tasks.append(
+                            {"text": "Sprawdź swoją pocztę klikając zakładkę 'Poczta'", "checked": False})
+                        tabs.append("Poczta")
                         switches_initialized = False
                         generate_colloquium()
                     current_screen = "task_screen"
@@ -1531,17 +1814,47 @@ while run:
             if menu_button_rect.collidepoint(mouse_pos):
                 final_screen_animation_played = False
                 current_screen = "menu"
-                InitNewGame()
+                init_new_game()
 
             elif leaderboard_button_rect.collidepoint(mouse_pos):
                 current_screen = "leaderboard_screen"
-                InitNewGame()
+                init_new_game()
 
     elif current_screen == "leaderboard_screen":
         back_button_rect = draw_leaderboard_screen()
         if mouse_clicked and back_button_rect.collidepoint(mouse_pos):
             cached_leaderboard = None
             current_screen = "menu"
+
+    elif current_screen == "failure_screen":
+        menu_button_rect, leaderboard_button_rect = draw_failure_screen()
+        if mouse_clicked:
+            if menu_button_rect.collidepoint(mouse_pos):
+                final_screen_animation_played = False
+                current_screen = "menu"
+                init_new_game()
+            elif leaderboard_button_rect.collidepoint(mouse_pos):
+                current_screen = "leaderboard_screen"
+                init_new_game()
+
+    elif current_screen == "event_popup":
+        draw_event_popup()
+        if mouse_clicked and event_button_rect and event_button_rect.collidepoint(mouse_pos):
+            active_event["effect"]()
+            current_screen = "task_screen"
+            active_event = None
+
+    elif current_screen == "mail_screen":
+        draw_mail_screen()
+        if mouse_clicked:
+            for msg in mail_messages:
+                if "button_rects" in msg:
+                    for rect, eff in msg["button_rects"]:
+                        if rect.collidepoint(mouse_pos):
+                            eff()
+                            msg["answered"] = True
+                            msg["button_rects"] = []
+                            break
 
     else:
         switches_initialized = False
