@@ -1319,6 +1319,26 @@ random_events = [
         "text": "Sąsiad przyniósł ci ciasto i twoja rodzina czuje się lepiej.",
         "effect": lambda: heal_random_family_member()
     },
+    {
+        "text": "Student przebił ci opony oraz wyciął katalizator. Musisz kupić nowy zestaw.",
+        "effect": lambda: change_money(-75)
+    },
+    {
+        "text": "Student napisał na ciebie donos do Dziekana, straciłeś dzisiejszą premię.",
+        "effect": lambda: change_money(-25)
+    },
+    {
+        "text": "Znalazłeś 5 monet pod uczelnią. Z tej okazji wydałeś 15 monet w żabce.",
+        "effect": lambda: change_money(-10)
+    },
+    {
+        "text": "Zaczepił Cię bezdomny, nie chciałeś dać mu 5 monet, więc zabrał ci portfel i Cię pobił.",
+        "effect": lambda: change_money(-50)
+    },
+    {
+        "text": "Syn wdał się w bójkę pod żabką.",
+        "effect": lambda:  infect_family_member("Syn")
+    },
 ]
 
 
