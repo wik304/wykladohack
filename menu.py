@@ -606,7 +606,12 @@ class SwitchButton:
 def get_grades_data(easy_mode_checked):
     student_names = [
         'Anna Dąbrowska', 'Bartek Sitek', 'Celina Fikus', 'Daniel Obajtek',
-        'Ela Jabłońska', 'Filip Chajzer', 'Gosia Androsiewicz', 'Hubert Urbański'
+        'Ela Jabłońska', 'Filip Chajzer', 'Gosia Androsiewicz', 'Hubert Urbański',
+        'Michał Kiraga', 'Jakub Gadomski', 'Marcin Najman', 'Jacek Murański',
+        'Denis Załęcki', 'Denis Labryga', 'Natan Marcoń', 'Gracjan Szadziński',
+        'Michael Bagietson', 'Marek Jówko', 'Daniel Magical', 'Gosia Magical',
+        'Bartosz Szachta', 'Piotr Szeliga', 'Mini Majk', 'Jaś Kapela', 'Tomek Czynsz',
+        'Robert Patus', 'Alberto Simao', 'Josef Bratan', 'Mariusz Pudzianowski'
     ]
     grades_data_local = []
     available_names = student_names.copy()
