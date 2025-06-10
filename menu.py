@@ -161,8 +161,6 @@ correct_states = []
 current_error_count = 0
 
 statusy = [
-    "Student I stopnia",
-    "Student II stopnia",
     "Licencjat",
     "Magister",
     "Doktorant",
@@ -172,7 +170,7 @@ statusy = [
     "Profesor uczelni",
     "Profesor zwyczajny"
 ]
-progi = [4, 7, 10, 15, 20, 30, 42, 57, 75, 95]
+progi = [4, 7, 10, 15, 20, 30, 42, 57]
 current_status_idx = 0
 total_completed_tasks = 0
 show_status_notification = False
@@ -603,16 +601,20 @@ class SwitchButton:
                 self.state = not self.state
 
 
+
+
+global students_names
+student_names = [
+    'Michał Kiraga', 'Jakub Gadomski', 'Marcin Najman', 'Jacek Murański',
+    'Denis Załęcki', 'Denis Labryga', 'Natan Marcoń', 'Gracjan Szadziński',
+    'Michael Bagietson', 'Marek Jówko', 'Daniel Magical', 'Gosia Magical',
+    'Bartosz Szachta', 'Piotr Szeliga', 'Mini Majk', 'Jaś Kapela', 'Tomek Czynsz',
+    'Robert Patus', 'Alberto Simao', 'Josef Bratan', 'Mariusz Pudzianowski'
+]
+
+
+
 def get_grades_data(easy_mode_checked):
-    student_names = [
-        'Anna Dąbrowska', 'Bartek Sitek', 'Celina Fikus', 'Daniel Obajtek',
-        'Ela Jabłońska', 'Filip Chajzer', 'Gosia Androsiewicz', 'Hubert Urbański',
-        'Michał Kiraga', 'Jakub Gadomski', 'Marcin Najman', 'Jacek Murański',
-        'Denis Załęcki', 'Denis Labryga', 'Natan Marcoń', 'Gracjan Szadziński',
-        'Michael Bagietson', 'Marek Jówko', 'Daniel Magical', 'Gosia Magical',
-        'Bartosz Szachta', 'Piotr Szeliga', 'Mini Majk', 'Jaś Kapela', 'Tomek Czynsz',
-        'Robert Patus', 'Alberto Simao', 'Josef Bratan', 'Mariusz Pudzianowski'
-    ]
     grades_data_local = []
     available_names = student_names.copy()
     for _ in range(5):
@@ -925,10 +927,7 @@ def draw_day_end_window(day_counter):
 
 def generate_colloquium():
     global colloquium_data, colloquium_errors, selected_lines
-    student_names = [
-        'Anna Dąbrowska', 'Bartek Sitek', 'Celina Fikus', 'Daniel Obajtek',
-        'Ela Jabłońska', 'Filip Chajzer', 'Gosia Androsiewicz', 'Hubert Urbański'
-    ]
+
     name = random.choice(student_names)
     entry = random.choice(colloquium_bank)
     variant = random.choice(entry["variants"])
@@ -1479,7 +1478,7 @@ def generate_mail():
             ]
         },
         {
-            "text": "Witam, jezeli nie wstawi mi Doktor oceny zaliczającej, spotkamy sie w ciemnej alejce",
+            "text": "Witam, jeżeli nie wstawi mi Doktor oceny zaliczającej, spotkamy sie w ciemnej alejce.",
             "effect": lambda: None,
             "responses": [
                 {"text": "Dobrze, przepraszam. Już wstawiam.", "effect": lambda: change_money(-10)},
