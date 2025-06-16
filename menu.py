@@ -1286,64 +1286,96 @@ def trigger_random_event():
     current_screen = "event_popup"
 
 
+event_images = {
+    "sick_wife": pygame.image.load('images/event_sick_wife.png'),
+    "lost_wallet": pygame.image.load('images/event_lost_wallet.png'),
+    "found_money": pygame.image.load('images/event_found_money.png'),
+    "side_job": pygame.image.load('images/event_side_job.png'),
+    "work_mistake": pygame.image.load('images/event_work_mistake.png'),
+    "sick_daughter": pygame.image.load('images/event_sick_daughter.png'),
+    "pc_crash": pygame.image.load('images/event_pc_crash.png'),
+    "work_bonus": pygame.image.load('images/event_work_bonus.png'),
+    "cake_gift": pygame.image.load('images/event_cake_gift.png'),
+    "car_damage": pygame.image.load('images/event_car_damage.png'),
+    "dean_report": pygame.image.load('images/event_dean_report.png'),
+    "snack_spending": pygame.image.load('images/event_snack_spending.png'),
+    "mugging": pygame.image.load('images/event_mugging.png'),
+    "son_fight": pygame.image.load('images/event_son_fight.png')
+}
+
 random_events = [
     {
         "text": "Ponieważ zapomniałeś zamknąć okno idąc spać, twoja żona zachorowała.",
-        "effect": lambda: infect_family_member("Żona")
+        "effect": lambda: infect_family_member("Żona"),
+        "image": event_images["sick_wife"]
     },
     {
         "text": "Zgubiłeś portfel w autobusie. Straciłeś 50 monet.",
-        "effect": lambda: change_money(-50)
+        "effect": lambda: change_money(-50),
+        "image": event_images["lost_wallet"]
     },
     {
         "text": "Twój syn znalazł 20 monet na ulicy i przyniósł je do domu.",
-        "effect": lambda: change_money(20)
+        "effect": lambda: change_money(20),
+        "image": event_images["found_money"]
     },
     {
         "text": "Zadzwonił znajomy z ofertą drobnej pracy. Zarobiłeś 30 monet.",
-        "effect": lambda: change_money(30)
+        "effect": lambda: change_money(30),
+        "image": event_images["side_job"]
     },
     {
         "text": "Z powodu zmęczenia popełniłeś błąd w zadaniu.",
-        "effect": lambda: add_error()
+        "effect": lambda: add_error(),
+        "image": event_images["work_mistake"]
     },
     {
         "text": "Twoja córka zaraziła się w szkole i przez najbliższe kilka dni musi zostać w domu.",
-        "effect": lambda: infect_family_member("Córka")
+        "effect": lambda: infect_family_member("Córka"),
+        "image": event_images["sick_daughter"]
     },
     {
         "text": "Twój komputer się zawiesił. Straciłeś postęp w jednym zadaniu.",
-        "effect": lambda: undo_random_task()
+        "effect": lambda: undo_random_task(),
+        "image": event_images["pc_crash"]
     },
     {
         "text": "Otrzymałeś premię za dobre wyniki w pracy! +75 monet.",
-        "effect": lambda: change_money(75)
+        "effect": lambda: change_money(75),
+        "image": event_images["work_bonus"]
     },
     {
         "text": "Sąsiad przyniósł ci ciasto i twoja rodzina czuje się lepiej.",
-        "effect": lambda: heal_random_family_member()
+        "effect": lambda: heal_random_family_member(),
+        "image": event_images["cake_gift"]
     },
     {
         "text": "Student przebił ci opony oraz wyciął katalizator. Musisz kupić nowy zestaw.",
-        "effect": lambda: change_money(-75)
+        "effect": lambda: change_money(-75),
+        "image": event_images["car_damage"]
     },
     {
         "text": "Student napisał na ciebie donos do Dziekana, straciłeś dzisiejszą premię.",
-        "effect": lambda: change_money(-25)
+        "effect": lambda: change_money(-25),
+        "image": event_images["dean_report"]
     },
     {
         "text": "Znalazłeś 5 monet pod uczelnią. Z tej okazji wydałeś 15 monet w żabce.",
-        "effect": lambda: change_money(-10)
+        "effect": lambda: change_money(-10),
+        "image": event_images["snack_spending"]
     },
     {
         "text": "Zaczepił Cię bezdomny, nie chciałeś dać mu 5 monet, więc zabrał ci portfel i Cię pobił.",
-        "effect": lambda: change_money(-50)
+        "effect": lambda: change_money(-50),
+        "image": event_images["mugging"]
     },
     {
         "text": "Syn wdał się w bójkę pod żabką.",
-        "effect": lambda:  infect_family_member("Syn")
-    },
+        "effect": lambda: infect_family_member("Syn"),
+        "image": event_images["son_fight"]
+    }
 ]
+
 
 
 def change_money(amount):
@@ -1386,15 +1418,14 @@ def draw_event_popup():
     if active_event:
         padding = 20
         max_text_width = SCREEN_WIDTH - 200
+        image_height = 200
+        image_padding = 20
 
         wrapped = wrap_text(active_event["text"], text_font, max_text_width)
-
         line_height = text_font.get_height()
-        text_widths = [text_font.size(line)[0] for line in wrapped]
-        content_width = max(text_widths) if text_widths else 200
-
+        content_width = max(text_font.size(line)[0] for line in wrapped)
         box_width = content_width + 2 * padding
-        box_height = len(wrapped) * line_height + 2 * padding + 70
+        box_height = image_height + image_padding + len(wrapped) * line_height + 2 * padding + 70
 
         box_x = (SCREEN_WIDTH - box_width) // 2
         box_y = (SCREEN_HEIGHT - box_height) // 2
@@ -1402,6 +1433,19 @@ def draw_event_popup():
         draw_rounded_rect(screen, box_x, box_y, box_width, box_height, (255, 255, 255), 10)
 
         y_offset = box_y + padding
+
+        if "image" in active_event and active_event["image"]:
+            original_image = active_event["image"]
+            original_width, original_height = original_image.get_size()
+            target_height = 200
+            scale_ratio = target_height / original_height
+            scaled_width = int(original_width * scale_ratio)
+
+            scaled_image = pygame.transform.scale(original_image, (scaled_width, target_height))
+            image_rect = scaled_image.get_rect(center=(SCREEN_WIDTH // 2, y_offset + target_height // 2))
+            screen.blit(scaled_image, image_rect)
+            y_offset += target_height + 20
+
         for line in wrapped:
             line_surf = text_font.render(line, True, (0, 0, 0))
             text_x = box_x + (box_width - line_surf.get_width()) // 2
@@ -1409,6 +1453,7 @@ def draw_event_popup():
             y_offset += line_height
 
         event_button_rect = draw_button("OK", 150, 50, SCREEN_WIDTH // 2, y_offset + 30)
+
 
 
 mail_messages = []
