@@ -444,11 +444,11 @@ def draw_character_select():
     if selected_character is None:
         circular_char1 = get_circular_surface(character1_img)
         circular_char2 = get_circular_surface(character2_img)
-        draw_rounded_rect_from_center_offset(screen, -400, -50, 420, 100, (255, 255, 255), 100)
+        draw_rounded_rect_from_center_offset(screen, -400, -50 + 250, 420, 100, (255, 255, 255), 100)
         draw_rounded_rect_from_center_offset(screen, 300, -50, 490, 100, (255, 255, 255), 100)
-        char1_rect = draw_image_top_left_from_center(circular_char1, screen, -500, -100)
+        char1_rect = draw_image_top_left_from_center(circular_char1, screen, -500, -100 + 250)
         char2_rect = draw_image_top_left_from_center(circular_char2, screen, 300, -100)
-        draw_text_top_left_from_center("Informatyk", title_font, 'black', screen, -280, -32)
+        draw_text_top_left_from_center("Informatyk", title_font, 'black', screen, -280, -32 + 250)
         draw_text_top_left_from_center("Matematyk", title_font, 'black', screen, 520, -32)
     else:
         pygame.draw.rect(screen, szary,
@@ -474,21 +474,27 @@ def draw_rounded_rect_from_center_offset(surface, offset_x, offset_y, width, hei
 
 def handle_character_selection(mouse_pos, mouse_clicked, char1_rect, char2_rect):
     global current_screen, selected_character
-    if mouse_clicked:
-        if char1_rect.collidepoint(mouse_pos):
-            play_button_click()
-            selected_character = "character1"
-        elif char2_rect.collidepoint(mouse_pos):
-            play_button_click()
-            selected_character = "character2"
-        else:
-            return
-        complete_task(0)
-        if "Zaloguj" not in tabs:
-            tabs.append("Zaloguj")
-        tasks.append(
-            {"text": "Zaloguj się do systemu klikając przycisk 'Zaloguj' w prawym górnym rogu", "checked": False})
-        current_screen = "task_screen"
+
+    if not mouse_clicked:
+        return
+
+    if char1_rect and char1_rect.collidepoint(mouse_pos):
+        play_button_click()
+        selected_character = "character1"
+    elif char2_rect and char2_rect.collidepoint(mouse_pos):
+        play_button_click()
+        selected_character = "character2"
+    else:
+        return
+
+    complete_task(0)
+    if "Zaloguj" not in tabs:
+        tabs.append("Zaloguj")
+    tasks.append({
+        "text": "Zaloguj się do systemu klikając przycisk 'Zaloguj' w prawym górnym rogu",
+        "checked": False
+    })
+    current_screen = "task_screen"
 
 
 def complete_task(index):
