@@ -118,6 +118,7 @@ calendar_icon = pygame.image.load('images/achievements/calendar_white.png')
 clock_blue = pygame.image.load('images/achievements/clock_blue.png')
 calendar_gold = pygame.image.load('images/achievements/calendar_gold.png')
 bid_green = pygame.image.load('images/achievements/bid_green.png')
+task_icon = pygame.image.load('images/achievements/task_icon.png')
 coins_incoming_red = pygame.transform.scale(pygame.image.load('images/achievements/coins_incoming_red.png'), (32, 32))
 cancel_gold = pygame.transform.scale(pygame.image.load('images/cancel_gold.png'), (32, 32))
 confirm_green = pygame.transform.scale(pygame.image.load('images/confirm_green.png'), (32, 32))
@@ -683,7 +684,10 @@ achievements = [
     {"name": "Wytrwały", "desc": "Przetrwaj 3 dni.", "unlocked": False, "color": None},
     {"name": "Bogacz", "desc": "Zdobądź 100 monet.", "unlocked": False, "color": None},
     {"name": "Bankrut", "desc": "Posiadaj ujemne saldo konta.", "unlocked": False, "color": None},
+    {"name": "Uczony", "desc": "Wykonaj 20 zadań.", "unlocked": False, "color": None},
 ]
+
+achievement_icons = [calendar_icon, clock_blue, calendar_gold, bid_green, coins_incoming_red, task_icon]
 
 
 def update_achievements():
@@ -693,6 +697,7 @@ def update_achievements():
         lambda: day_counter >= 3,
         lambda: money >= 100,
         lambda: money < 0,
+        lambda: total_completed_tasks >= 20,
     ]
 
     for i, condition in enumerate(conditions):
@@ -886,8 +891,6 @@ def draw_day_end_window(day_counter):
 
         role_text = other_font.render(member["role"], True, (0, 0, 0))
         screen.blit(role_text, role_text.get_rect(center=(x, cy + radius + 20)))
-
-    achievement_icons = [calendar_icon, clock_blue, calendar_gold, bid_green, coins_incoming_red]
 
     update_achievements()
     ach_size = 64
@@ -1749,7 +1752,6 @@ while run:
                 elif tab_rect.collidepoint(mouse_pos) and tab_name == "Webdziekanat":
                     current_screen = "webdziekanat_screen"
                 elif tab_rect.collidepoint(mouse_pos) and tab_name == "Kolokwia":
-                    complete_task(2)
                     generate_colloquium()
                     current_screen = "colloquium_screen"
                 elif tab_rect.collidepoint(mouse_pos) and tab_name == "Poczta":
