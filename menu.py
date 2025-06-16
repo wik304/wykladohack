@@ -124,7 +124,7 @@ confirm_green = pygame.transform.scale(pygame.image.load('images/confirm_green.p
 cancel_red = pygame.transform.scale(pygame.image.load('images/cancel_red.png'), (32, 32))
 background_map = pygame.image.load('images/map.png')
 map_width, map_height = background_map.get_size()
-scale_factor = 1.08
+scale_factor = 0.4
 background_map = pygame.transform.scale(
     background_map,
     (int(map_width * scale_factor), int(map_height * scale_factor))
@@ -1541,10 +1541,17 @@ def generate_mail():
 
 
 def draw_mail_screen():
-    global answered_mails
+    global answered_mails, current_screen, completed_tasks
     screen.fill(szary)
+
     draw_top_bar()
 
+    if timer_flag:
+        draw_timer()
+
+    draw_multiple_task_boxes(screen, tasks, 50, 180)
+
+    base_x = 700
     y = 150
     button_height = 40
     padding = 10
@@ -1553,20 +1560,32 @@ def draw_mail_screen():
         mail_id = msg["id"]
         is_answered = mail_id in answered_mails
 
-        box_height = 80
+        if "sender" not in msg:
+            msg["sender"] = random.choice(student_names)
+
+        sender_text = f"Od: {msg['sender']}"
+        sender_surface = other_font.render(sender_text, True, (0, 0, 0))
+        sender_height = sender_surface.get_height()
+
+        box_height = 80 + sender_height
         if not is_answered and "responses" in msg:
             box_height += (button_height + padding) * len(msg["responses"]) + padding
 
-        draw_rounded_rect(screen, 300, y, SCREEN_WIDTH - 600, box_height, (255, 255, 255), 10)
-        line_surf = text_font.render(msg["text"], True, (0, 0, 0))
-        screen.blit(line_surf, (320, y + 20))
+        draw_rounded_rect(screen, base_x, y, SCREEN_WIDTH - base_x - 50, box_height, (255, 255, 255), 10)
+
+        screen.blit(sender_surface, (base_x + 20, y + 10))
+
+        text_surface = text_font.render(msg["text"], True, (0, 0, 0))
+        screen.blit(text_surface, (base_x + 20, y + 20 + sender_height))
 
         if not is_answered and "responses" in msg:
             for idx, resp in enumerate(msg["responses"]):
-                btn_rect_shadow = pygame.Rect(320, y + 60 + idx * (button_height + padding) + 2, 500 + 2, button_height)
+                btn_rect_shadow = pygame.Rect(base_x + 20, y + 60 + sender_height + idx * (button_height + padding) + 2, 500 + 2, button_height)
                 pygame.draw.rect(screen, (0, 0, 0), btn_rect_shadow, border_radius=6)
-                btn_rect = pygame.Rect(320, y + 60 + idx * (button_height + padding), 500, button_height)
+
+                btn_rect = pygame.Rect(base_x + 20, y + 60 + sender_height + idx * (button_height + padding), 500, button_height)
                 pygame.draw.rect(screen, zolty, btn_rect, border_radius=6)
+
                 text_surf = info_font.render(resp["text"], True, blue)
                 text_rect = text_surf.get_rect(center=btn_rect.center)
                 screen.blit(text_surf, text_rect)
@@ -1574,13 +1593,21 @@ def draw_mail_screen():
                 if mouse_clicked and btn_rect.collidepoint(mouse_pos):
                     answered_mails.add(mail_id)
                     resp["effect"]()
-                    break
+                    # Znajdź i odznacz odpowiednie zadanie
+                    for idx, task in enumerate(tasks):
+                        if "Poczta" in task["text"] and not task["checked"]:
+                            complete_task(idx)
+                            break
 
-        y += box_height + 20
+        y += box_height + 30
 
-    draw_button("Powrót", 150, 50, SCREEN_WIDTH // 2 + 0, SCREEN_HEIGHT // 2 + 400)
+    back_button_rect = draw_button("Powrót", 150, 50, SCREEN_WIDTH // 2 + 0, SCREEN_HEIGHT // 2 + 400)
 
-    if mouse_clicked:
+    if mouse_clicked and back_button_rect.collidepoint(mouse_pos):
+        for idx, task in enumerate(tasks):
+            if "Poczta" in task["text"] and not task["checked"]:
+                complete_task(idx)
+                break
         current_screen = "task_screen"
 
 
@@ -1932,6 +1959,7 @@ while run:
                             eff()
                             msg["answered"] = True
                             msg["button_rects"] = []
+                            complete_task(3)
                             break
 
     else:
