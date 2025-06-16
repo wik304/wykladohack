@@ -8,6 +8,14 @@ import random
 from colloquium_bank import colloquium_bank
 import requests
 
+pygame.init()
+pygame.mixer.init()
+
+switch_sound = pygame.mixer.Sound("sounds/ui-pop-sound-316482.mp3")
+button_click_sound = pygame.mixer.Sound("sounds/casual-click-pop-ui-3-262120.mp3")
+game_lose_sound = pygame.mixer.Sound("sounds/violin-lose-5-185126.mp3")
+game_win_sound = pygame.mixer.Sound("sounds/11l-victory_trumpet-1749704501065-358769.mp3")
+
 
 def download_leaderboard():
     url = "https://49750f73-1884-4a17-8781-14af8f9d6f26-00-zzy76itq5v3v.picard.replit.dev/leaderboard"
@@ -176,8 +184,8 @@ current_status_idx = 0
 total_completed_tasks = 0
 show_status_notification = False
 
-
 LEADERBOARD_FILE = "leaderboard.json"
+
 
 def load_leaderboard():
     if os.path.exists(LEADERBOARD_FILE):
@@ -185,10 +193,10 @@ def load_leaderboard():
             return json.load(f)
     return []
 
+
 def save_leaderboard(leaderboard):
     with open(LEADERBOARD_FILE, "w") as f:
         json.dump(leaderboard, f)
-
 
 
 def draw_checkbox_with_cancel(surface, x, y, checked):
@@ -218,6 +226,42 @@ def draw_menu():
     return play_rect, settings_rect, exit_rect
 
 
+def play_button_click():
+    if button_click_sound:
+        try:
+            button_click_sound.set_volume(sound_volume / 100)
+            button_click_sound.play()
+        except:
+            pass
+
+
+def play_switch_sound():
+    if switch_sound:
+        try:
+            switch_sound.set_volume(sound_volume / 100)
+            switch_sound.play()
+        except:
+            pass
+
+
+def play_game_lose_sound():
+    if game_lose_sound:
+        try:
+            game_lose_sound.set_volume(sound_volume / 1000)
+            game_lose_sound.play()
+        except:
+            pass
+
+
+def play_game_win_sound():
+    if game_win_sound:
+        try:
+            game_win_sound.set_volume(sound_volume / 1000)
+            game_win_sound.play()
+        except:
+            pass
+
+
 def draw_settings():
     screen.fill((255, 255, 255))
     draw_text("Ustawienia", title_font, 'black', screen, 0, -200)
@@ -232,12 +276,14 @@ def draw_settings():
     mouse_hover_text = None
 
     fullscreen_text_rect = draw_text_top_left_from_center("Tryb pełnoekranowy", text_font, 'black', screen, -200, -100)
-    fullscreen_icon_rect = draw_checkbox_with_cancel(screen, SCREEN_WIDTH // 2 + 170, SCREEN_HEIGHT // 2 - 95, fullscreen_checked)
+    fullscreen_icon_rect = draw_checkbox_with_cancel(screen, SCREEN_WIDTH // 2 + 170, SCREEN_HEIGHT // 2 - 95,
+                                                     fullscreen_checked)
     if fullscreen_text_rect.collidepoint(mouse_pos):
         mouse_hover_text = tooltips["Tryb pełnoekranowy"]
 
     easy_mode_text_rect = draw_text_top_left_from_center("Łatwy tryb gry", text_font, 'black', screen, -200, -60)
-    easy_mode_icon_rect = draw_checkbox_with_cancel(screen, SCREEN_WIDTH // 2 + 170, SCREEN_HEIGHT // 2 - 55, easy_mode_checked)
+    easy_mode_icon_rect = draw_checkbox_with_cancel(screen, SCREEN_WIDTH // 2 + 170, SCREEN_HEIGHT // 2 - 55,
+                                                    easy_mode_checked)
     if easy_mode_text_rect.collidepoint(mouse_pos):
         mouse_hover_text = tooltips["Łatwy tryb gry"]
 
@@ -246,7 +292,8 @@ def draw_settings():
     minus_icon_rect = draw_image_top_left_from_center(minus_icon, screen, 130, -15)
     plus_icon_rect = draw_image_top_left_from_center(plus_icon, screen, 170, -15)
     fill_width = int(84 * (music_volume / 100))
-    pygame.draw.rect(screen, 'black', pygame.Rect(volume_bar_border_rect.left + 3, volume_bar_border_rect.top + 3, fill_width, 20))
+    pygame.draw.rect(screen, 'black',
+                     pygame.Rect(volume_bar_border_rect.left + 3, volume_bar_border_rect.top + 3, fill_width, 20))
     if music_text_rect.collidepoint(mouse_pos):
         mouse_hover_text = tooltips["Muzyka"]
 
@@ -255,16 +302,18 @@ def draw_settings():
     sound_minus_icon_rect = draw_image_top_left_from_center(minus_icon, screen, 130, 25)
     sound_plus_icon_rect = draw_image_top_left_from_center(plus_icon, screen, 170, 25)
     fill_width_sound = int(84 * (sound_volume / 100))
-    pygame.draw.rect(screen, 'black', pygame.Rect(sound_bar_border_rect.left + 3, sound_bar_border_rect.top + 3, fill_width_sound, 20))
+    pygame.draw.rect(screen, 'black',
+                     pygame.Rect(sound_bar_border_rect.left + 3, sound_bar_border_rect.top + 3, fill_width_sound, 20))
     if sound_text_rect.collidepoint(mouse_pos):
         mouse_hover_text = tooltips["Dźwięki"]
 
-    back_rect = draw_text("Powrót", text_font, 'black', screen, 0, 150)
+    back_rect = draw_button("Powrót", 150, 50, SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2 + 150)
 
     if mouse_hover_text:
         draw_tooltip(mouse_hover_text, mouse_pos[0], mouse_pos[1] + 20)
 
-    return (back_rect, fullscreen_icon_rect, easy_mode_icon_rect, minus_icon_rect, plus_icon_rect, sound_minus_icon_rect, sound_plus_icon_rect)
+    return (back_rect, fullscreen_icon_rect, easy_mode_icon_rect, minus_icon_rect, plus_icon_rect,
+            sound_minus_icon_rect, sound_plus_icon_rect)
 
 
 def wrap_text(text, font, max_width):
@@ -427,8 +476,10 @@ def handle_character_selection(mouse_pos, mouse_clicked, char1_rect, char2_rect)
     global current_screen, selected_character
     if mouse_clicked:
         if char1_rect.collidepoint(mouse_pos):
+            play_button_click()
             selected_character = "character1"
         elif char2_rect.collidepoint(mouse_pos):
+            play_button_click()
             selected_character = "character2"
         else:
             return
@@ -600,8 +651,7 @@ class SwitchButton:
         if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
             if self.rect.collidepoint(event.pos):
                 self.state = not self.state
-
-
+                play_switch_sound()
 
 
 global students_names
@@ -612,7 +662,6 @@ student_names = [
     'Bartosz Szachta', 'Piotr Szeliga', 'Mini Majk', 'Jaś Kapela', 'Tomek Czynsz',
     'Robert Patus', 'Alberto Simao', 'Josef Bratan', 'Mariusz Pudzianowski'
 ]
-
 
 
 def get_grades_data(easy_mode_checked):
@@ -710,7 +759,6 @@ family_members = [
     {"role": "Syn", "status": "Zdrowy", "hunger_days": 0, "sick_days": 0, "alive": True},
     {"role": "Córka", "status": "Zdrowa", "hunger_days": 0, "sick_days": 0, "alive": True}
 ]
-
 
 medicine_checkboxes_checked = {}
 
@@ -852,7 +900,7 @@ def draw_day_end_window(day_counter):
     if final_text_rect.collidepoint(mouse_pos):
         tooltip_to_draw = tooltips["Kwota końcowa"]
 
-    continue_rect = draw_button("Kontynuuj", 150, 50, SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2 + 150)
+    continue_rect = draw_button("Kontynuuj", 150, 50, SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2 + 300)
 
     status_colors = {
         "Zdrowa": (0, 200, 0), "Zdrowy": (0, 200, 0),
@@ -927,7 +975,6 @@ def draw_day_end_window(day_counter):
     return continue_rect, food_toggle_rect, total_sum
 
 
-
 def generate_colloquium():
     global colloquium_data, colloquium_errors, selected_lines
 
@@ -968,7 +1015,8 @@ def draw_colloquium_window():
         y += 40
         line_rects.append(text_rect)
 
-    accept_button_rect = draw_button("Zatwierdź sprawdzanie", 300, 50, SCREEN_WIDTH // 2 + 150, SCREEN_HEIGHT // 2 + 400)
+    accept_button_rect = draw_button("Zatwierdź sprawdzanie", 300, 50, SCREEN_WIDTH // 2 + 150,
+                                     SCREEN_HEIGHT // 2 + 400)
 
     return line_rects, accept_button_rect
 
@@ -987,6 +1035,14 @@ def draw_button(text, width, height, center_x, center_y):
     text_surf = text_font.render(text, True, blue)
     text_rect = text_surf.get_rect(center=rect.center)
     screen.blit(text_surf, text_rect)
+
+    mouse_clicked = pygame.mouse.get_pressed()[0]
+    if mouse_clicked and rect.collidepoint(pygame.mouse.get_pos()):
+        if button_click_sound:
+            try:
+                play_button_click()
+            except:
+                pass
 
     return rect
 
@@ -1042,7 +1098,7 @@ def update_family_health():
             member["days_sick"] = member.get("days_sick", 0)
 
         if ("Chory" in statuses_set or "Chora" in statuses_set) and \
-           ("Głodny" in statuses_set or "Głodna" in statuses_set):
+                ("Głodny" in statuses_set or "Głodna" in statuses_set):
             member["sick_and_hungry_days"] = member.get("sick_and_hungry_days", 0) + 1
             if member["sick_and_hungry_days"] >= 2 and random.random() < 0.25:
                 statuses_set = {"Martwy" if member["role"].endswith("n") else "Martwa"}
@@ -1143,11 +1199,19 @@ def calculate_final_score(days_survived, tasks_completed, money_left, total_erro
     status_bonus_table = [0, 50, 100, 150, 250, 400, 600, 800, 1000, 1500]
     status_bonus = status_bonus_table[status_idx] if 0 <= status_idx < len(status_bonus_table) else 0
     achievements_bonus = achievements_unlocked * 200
-    return (days_survived * 50) + (tasks_completed * 20) + money_left - (total_errors * 10) + status_bonus + achievements_bonus
+    return (days_survived * 50) + (tasks_completed * 20) + money_left - (
+                total_errors * 10) + status_bonus + achievements_bonus
+
+
+game_win_sound_played = False
 
 
 def draw_final_screen():
-    global final_screen_start_time
+    global final_screen_start_time, game_win_sound_played
+
+    if not game_win_sound_played:
+        play_game_win_sound()
+        game_win_sound_played = True
 
     if final_screen_start_time is None:
         final_screen_start_time = time.time()
@@ -1210,7 +1274,7 @@ def draw_leaderboard_screen(local_leaderboard=None):
     top_10 = sorted_leaderboard[:10]
     y_offset = -200
     for i, entry in enumerate(top_10):
-        text = f"{i+1}. {entry['nickname']} - {entry['score']}"
+        text = f"{i + 1}. {entry['nickname']} - {entry['score']}"
         draw_text(text, text_font, 'black', screen, 0, y_offset + i * 40)
 
     if login_nickname:
@@ -1256,8 +1320,16 @@ def init_new_game():
     answered_mails.clear()
 
 
+game_lose_sound_played = False
+
+
 def draw_failure_screen():
-    global final_screen_start_time
+    global final_screen_start_time, game_lose_sound_played
+
+    if not game_lose_sound_played:
+        play_game_lose_sound()
+        game_lose_sound_played = True
+
     if final_screen_start_time is None:
         final_screen_start_time = time.time()
 
@@ -1380,7 +1452,6 @@ random_events = [
 ]
 
 
-
 def change_money(amount):
     global money
     money += amount
@@ -1458,7 +1529,6 @@ def draw_event_popup():
         event_button_rect = draw_button("OK", 150, 50, SCREEN_WIDTH // 2, y_offset + 30)
 
 
-
 mail_messages = []
 last_mail_day = -1
 answered_mails = set()
@@ -1531,7 +1601,8 @@ def generate_mail():
             "responses": [
                 {"text": "Dobrze, przepraszam. Już wstawiam.", "effect": lambda: change_money(-10)},
                 {"text": "Witam, Dziekan został powiadomiony.", "effect": lambda: None},
-                {"text": "Dzień dobry, w takim razie do zobaczenia, 3x3 minuty full mma.", "effect": lambda: change_money(-5)}
+                {"text": "Dzień dobry, w takim razie do zobaczenia, 3x3 minuty full mma.",
+                 "effect": lambda: change_money(-5)}
             ]
         },
     ]
@@ -1583,10 +1654,12 @@ def draw_mail_screen():
 
         if not is_answered and "responses" in msg:
             for idx, resp in enumerate(msg["responses"]):
-                btn_rect_shadow = pygame.Rect(base_x + 20, y + 60 + sender_height + idx * (button_height + padding) + 2, 500 + 2, button_height)
+                btn_rect_shadow = pygame.Rect(base_x + 20, y + 60 + sender_height + idx * (button_height + padding) + 2,
+                                              500 + 2, button_height)
                 pygame.draw.rect(screen, (0, 0, 0), btn_rect_shadow, border_radius=6)
 
-                btn_rect = pygame.Rect(base_x + 20, y + 60 + sender_height + idx * (button_height + padding), 500, button_height)
+                btn_rect = pygame.Rect(base_x + 20, y + 60 + sender_height + idx * (button_height + padding), 500,
+                                       button_height)
                 pygame.draw.rect(screen, zolty, btn_rect, border_radius=6)
 
                 text_surf = info_font.render(resp["text"], True, blue)
@@ -1594,9 +1667,9 @@ def draw_mail_screen():
                 screen.blit(text_surf, text_rect)
 
                 if mouse_clicked and btn_rect.collidepoint(mouse_pos):
+                    play_button_click()
                     answered_mails.add(mail_id)
                     resp["effect"]()
-                    # Znajdź i odznacz odpowiednie zadanie
                     for idx, task in enumerate(tasks):
                         if "Poczta" in task["text"] and not task["checked"]:
                             complete_task(idx)
@@ -1703,9 +1776,11 @@ while run:
         if mouse_clicked:
             if play_rect.collidepoint(mouse_pos):
                 current_screen = "character_select"
+                play_button_click()
                 day_start_time = time.time()
             elif settings_rect.collidepoint(mouse_pos):
                 current_screen = "settings"
+                play_button_click()
             elif exit_rect.collidepoint(mouse_pos):
                 save_settings()
                 run = False
@@ -1722,19 +1797,25 @@ while run:
                 else:
                     current_screen = "menu"
             elif full_icon_rect.collidepoint(mouse_pos):
+                play_switch_sound()
                 fullscreen_checked = not fullscreen_checked
                 toggle_fullscreen(fullscreen_checked)
             elif easy_icon_rect.collidepoint(mouse_pos):
+                play_switch_sound()
                 easy_mode_checked = not easy_mode_checked
             elif minus_rect.collidepoint(mouse_pos):
+                play_switch_sound()
                 music_volume = max(0, music_volume - 10)
             elif plus_rect.collidepoint(mouse_pos):
+                play_switch_sound()
                 music_volume = min(100, music_volume + 10)
             elif snd_minus_rect.collidepoint(mouse_pos):
+                play_switch_sound()
                 sound_volume = max(0, sound_volume - 10)
             elif snd_plus_rect.collidepoint(mouse_pos):
+                play_switch_sound()
                 sound_volume = min(100, sound_volume + 10)
-        save_settings()
+            save_settings()
 
     elif current_screen == "character_select":
         char1_rect, char2_rect = draw_character_select()
@@ -1749,14 +1830,18 @@ while run:
             for tab_name, tab_rect in tab_rects:
                 if tab_rect.collidepoint(mouse_pos) and tab_name == "Zaloguj":
                     current_screen = "login_form"
+                    play_button_click()
                 elif tab_rect.collidepoint(mouse_pos) and tab_name == "Webdziekanat":
                     current_screen = "webdziekanat_screen"
+                    play_button_click()
                 elif tab_rect.collidepoint(mouse_pos) and tab_name == "Kolokwia":
                     generate_colloquium()
                     current_screen = "colloquium_screen"
+                    play_button_click()
                 elif tab_rect.collidepoint(mouse_pos) and tab_name == "Poczta":
                     generate_mail()
                     current_screen = "mail_screen"
+                    play_button_click()
 
     elif current_screen == "login_form":
         draw_login_form()
@@ -1828,14 +1913,17 @@ while run:
                     if entry["checkbox_rect"].collidepoint(mouse_pos):
                         role = entry["checkbox_role"]
                         medicine_checkboxes_checked[role] = not medicine_checkboxes_checked.get(role, False)
+                        play_switch_sound()
 
             if food_toggle_rect.collidepoint(mouse_pos):
                 if not food_checkbox_checked:
                     potential_sum = calculated_total_sum + -food_price
                     if potential_sum >= 0:
                         food_checkbox_checked = True
+                        play_switch_sound()
                 else:
                     food_checkbox_checked = False
+                    play_switch_sound()
 
             if continue_rect.collidepoint(mouse_pos):
                 update_family_health()
@@ -1902,6 +1990,7 @@ while run:
             for i, rect in enumerate(line_rects):
                 if rect.collidepoint(mouse_pos):
                     selected_lines[i] = not selected_lines[i]
+                    play_switch_sound()
             if accept_button_rect.collidepoint(mouse_pos):
                 current_error_count = 0
                 errors_in_colloquium = 0
