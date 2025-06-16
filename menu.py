@@ -1604,7 +1604,7 @@ def draw_mail_screen():
 
         y += box_height + 30
 
-    back_button_rect = draw_button("Powrót", 150, 50, SCREEN_WIDTH // 2 + 0, SCREEN_HEIGHT // 2 + 400)
+    back_button_rect = draw_button("Powrót", 150, 50, SCREEN_WIDTH // 2 + 0, SCREEN_HEIGHT // 2 + 450)
 
     if mouse_clicked and back_button_rect.collidepoint(mouse_pos):
         for idx, task in enumerate(tasks):
