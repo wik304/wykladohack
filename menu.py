@@ -154,7 +154,7 @@ def scale_image(image, scale_factor):
 
 switch_ok_icon = scale_image(switch_ok_icon, 2)
 switch_no_icon = scale_image(switch_no_icon, 2)
-money = 1000
+money = 100
 
 title_font = pygame.font.Font('font/VT323-Regular.ttf', 64)
 text_font = pygame.font.Font('font/VT323-Regular.ttf', 32)
