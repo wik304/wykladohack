@@ -1742,7 +1742,7 @@ while run:
             current_hour = 8 + (total_minutes // 60)
             current_minute = total_minutes % 60
 
-            if timer_flag and not game_paused and current_screen == "task_screen" and random.random() < 0.00002:
+            if timer_flag and not game_paused and current_screen == "task_screen" and random.random() < 0.002:
                 trigger_random_event()
 
             if current_hour >= 16:
