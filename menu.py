@@ -16,6 +16,13 @@ button_click_sound = pygame.mixer.Sound("sounds/casual-click-pop-ui-3-262120.mp3
 game_lose_sound = pygame.mixer.Sound("sounds/violin-lose-5-185126.mp3")
 game_win_sound = pygame.mixer.Sound("sounds/11l-victory_trumpet-1749704501065-358769.mp3")
 
+music_tracks = [
+    "music/5-cinematic__bpm70-200198.mp3",
+    "music/edm003-retro-edm-_-gamepixel-racer-358045.mp3",
+    "music/funny-bgm-vol5-242455.mp3"
+]
+current_track_index = 0
+
 
 def download_leaderboard():
     url = "https://49750f73-1884-4a17-8781-14af8f9d6f26-00-zzy76itq5v3v.picard.replit.dev/leaderboard"
@@ -1693,6 +1700,20 @@ def draw_mail_screen():
         current_screen = "task_screen"
 
 
+def play_next_track():
+    global current_track_index
+    current_track_index = (current_track_index + 1) % len(music_tracks)
+    pygame.mixer.music.load(music_tracks[current_track_index])
+    pygame.mixer.music.set_volume(music_volume / 100)
+    pygame.mixer.music.play(-1)
+
+pygame.mixer.music.load(music_tracks[current_track_index])
+pygame.mixer.music.set_volume(music_volume / 100)
+pygame.mixer.music.play(-1)
+
+pygame.mixer.music.set_endevent(pygame.USEREVENT)
+
+
 while run:
     mouse_pos = pygame.mouse.get_pos()
     mouse_clicked = False
@@ -1745,6 +1766,8 @@ while run:
 
         if event.type == pygame.QUIT:
             run = False
+        elif event.type == pygame.USEREVENT:
+            play_next_track()
 
         if event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
             if not settings_open:
@@ -1812,9 +1835,11 @@ while run:
             elif minus_rect.collidepoint(mouse_pos):
                 play_switch_sound()
                 music_volume = max(0, music_volume - 10)
+                pygame.mixer.music.set_volume(music_volume / 100)
             elif plus_rect.collidepoint(mouse_pos):
                 play_switch_sound()
                 music_volume = min(100, music_volume + 10)
+                pygame.mixer.music.set_volume(music_volume / 100)
             elif snd_minus_rect.collidepoint(mouse_pos):
                 play_switch_sound()
                 sound_volume = max(0, sound_volume - 10)
