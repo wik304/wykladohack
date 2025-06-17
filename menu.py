@@ -1757,6 +1757,8 @@ while run:
     draw_timer()
 
     for event in pygame.event.get():
+        if event.type == pygame.USEREVENT:
+            play_next_track()
         for switch in switch_buttons:
             switch.handle_event(event)
 
