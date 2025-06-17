@@ -527,8 +527,25 @@ def draw_timer():
     screen.blit(text_surface, (70, 117))
 
 
+def draw_blurred_background_map():
+    bg_surface = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT))
+    bg_surface.blit(background_map, (0, 0))
+
+    blurred_bg = pygame.transform.smoothscale(bg_surface,
+                                              (SCREEN_WIDTH // 8, SCREEN_HEIGHT // 8))
+    blurred_bg = pygame.transform.smoothscale(blurred_bg,
+                                              (SCREEN_WIDTH, SCREEN_HEIGHT))
+
+    screen.blit(blurred_bg, (0, 0))
+
+    overlay = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.SRCALPHA)
+    overlay.fill((229, 229, 229, 64))
+    screen.blit(overlay, (0, 0))
+
+
 def draw_task_screen():
-    screen.fill(szary)
+    draw_blurred_background_map()
+
     draw_top_bar()
     if timer_flag:
         draw_timer()
@@ -1629,7 +1646,7 @@ def generate_mail():
 
 def draw_mail_screen():
     global answered_mails, current_screen, completed_tasks
-    screen.fill(szary)
+    draw_blurred_background_map()
 
     draw_top_bar()
 
